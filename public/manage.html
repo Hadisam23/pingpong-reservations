@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>My Booking</title>
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="container" style="max-width:480px">
@@ -42,10 +42,11 @@
       <div id="cancelArea"></div>
     </div>
 
-    <p class="muted small" style="text-align:center"><a href="/">Book a table</a></p>
+    <p class="muted small" style="text-align:center"><a href="index.html">Book a table</a></p>
   </div>
 
-  <script src="/common.js"></script>
+  <script src="config.js"></script>
+  <script src="common.js"></script>
   <script>
     const params = new URLSearchParams(location.search);
     let creds = null;
@@ -63,6 +64,7 @@
         <dt>Day</dt><dd>${esc(prettyDate(b.date))}</dd>
         <dt>Time</dt><dd>${esc(b.start)} – ${esc(b.end)}</dd>
         <dt>Table</dt><dd>${esc(b.table.name)}</dd>
+        <dt>Session</dt><dd>${esc(b.typeLabel)}</dd>
         <dt>Name</dt><dd>${esc(b.name)}</dd>
         <dt>Players</dt><dd>${b.players}</dd>
         <dt>Price</dt><dd>${esc(money(b.price, b.currency))}</dd>`;

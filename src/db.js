@@ -26,6 +26,7 @@ const SCHEMA = `
     phone TEXT,
     players INTEGER NOT NULL,
     price REAL NOT NULL,
+    type TEXT NOT NULL DEFAULT 'casual',
     status TEXT NOT NULL,
     source TEXT NOT NULL,
     createdAt TEXT NOT NULL,
@@ -46,7 +47,7 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_blocks_date ON blocks(date);
 `;
 
-const INITIAL_TABLE_COUNT = 6;
+const INITIAL_TABLE_COUNT = 5;
 
 function openDb(file) {
   if (file !== ':memory:') fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
@@ -54,6 +55,10 @@ function openDb(file) {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.exec(SCHEMA);
+
+  // Databases created before booking types existed
+  const columns = db.prepare('PRAGMA table_info(bookings)').all().map(c => c.name);
+  if (!columns.includes('type')) db.exec("ALTER TABLE bookings ADD COLUMN type TEXT NOT NULL DEFAULT 'casual'");
 
   const { count } = db.prepare('SELECT COUNT(*) AS count FROM tables').get();
   if (count === 0) {

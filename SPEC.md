@@ -23,6 +23,9 @@ opening hours and prices.
 - **Pricing** is per hour with two rates: **off-peak** and **peak**. Peak is weekday evenings from
   a set time (default 17:00) plus whole peak days (default Fri + Sat). The price is calculated
   per slot, so a booking that crosses into peak time is priced correctly.
+- Each reservation has a **session type**, each with its own price add-on and optional minimum length:
+  casual play, training with the robot (+30/h), private coaching (+120/h), league match, and
+  birthday/event (+50/h, minimum 2 h). Staff can edit the list.
 - Everything runs in the **center's time zone** (default `Asia/Jerusalem`), not the server's or
   the browser's.
 
@@ -46,6 +49,7 @@ opening hours and prices.
 - Pick a **date** (chips for the next 14 days), pick a **duration**, then see a **grid of
   times × tables**. Free, taken, and past slots look clearly different, and a start time only
   lights up when the whole chosen duration fits.
+- Pick the **session type**. Durations shorter than that type's minimum are disabled.
 - Tap a slot → see a summary (table, date, start–end, **price**) → enter **name, phone, number of
   players** → **Book**.
 - The confirmation shows a short **booking code** (e.g. `K7QX2M`) and a **private manage link**.
@@ -88,7 +92,19 @@ opening hours and prices.
 - **Tests:** automated API tests covering pricing, overlaps, simultaneous booking attempts,
   validation, per-phone limits, blocks, manage/cancel rules, and admin auth.
 
-### 6. Deliberately out of scope for v1 (next steps)
+### 6. Mobile app
+
+- A **Capacitor iOS app** wraps the same customer, manage and front-desk pages, and calls the API
+  through a configurable server URL. The server allows the app's origins through CORS.
+- Native touches: safe areas for the notch and home indicator, the native share sheet for the
+  booking link, and a success haptic.
+- **Demo data:** a seeder creates 5 tables and random reservations of every type and status, from
+  3 days back to 7 days ahead.
+- **Tests:** an end-to-end suite runs the app bundle on an emulated iPhone. A script for macOS
+  builds the app, runs it on the iOS Simulator, and checks that a booking made inside the app
+  reaches the server.
+
+### 7. Deliberately out of scope for v1 (next steps)
 
 - Online payment / deposits (e.g. Stripe or a local payment provider)
 - SMS / WhatsApp confirmations and reminders

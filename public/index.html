@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Book a Table</title>
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="container">
@@ -30,12 +30,17 @@
       </div>
 
       <div class="card">
-        <h2>2. How long?</h2>
+        <h2>2. What are you playing?</h2>
+        <div class="types" id="types"></div>
+      </div>
+
+      <div class="card">
+        <h2>3. How long?</h2>
         <div class="segmented" id="durations"></div>
       </div>
 
       <div class="card">
-        <h2>3. Time &amp; table</h2>
+        <h2>4. Time &amp; table</h2>
         <div id="gridMsg" class="muted small hidden"></div>
         <div class="grid-wrap"><div class="grid" id="grid"></div></div>
         <div class="legend" id="legend">
@@ -44,7 +49,7 @@
       </div>
 
       <div class="card hidden" id="formCard">
-        <h2>4. Your details</h2>
+        <h2>5. Your details</h2>
         <dl class="summary" id="summary"></dl>
         <div id="formError" class="alert err hidden"></div>
         <form id="form" novalidate>
@@ -78,16 +83,18 @@
         <input id="doneLink" readonly>
         <button class="btn ghost" id="copyLink" type="button">Copy</button>
       </div>
-      <p class="muted small" style="margin:8px 0 14px">This page remembers the booking too. Lost the link? Use your code and phone number on the <a href="/manage">manage page</a>.</p>
+      <button class="btn block" id="shareLink" type="button" style="margin-top:10px">Share booking</button>
+      <p class="muted small" style="margin:8px 0 14px">This page remembers the booking too. Lost the link? Use your code and phone number on the <a href="manage.html">manage page</a>.</p>
       <button class="btn block ghost" id="again" type="button">Book another table</button>
     </div>
 
-    <p class="muted small" style="text-align:center;margin-top:8px"><a href="/manage">Find or cancel a booking</a></p>
+    <p class="muted small" style="text-align:center;margin-top:8px"><a href="manage.html">Find or cancel a booking</a></p>
   </div>
 
-  <script src="/common.js"></script>
+  <script src="config.js"></script>
+  <script src="common.js"></script>
   <script>
-    const state = { config: null, date: null, duration: null, avail: null, sel: null };
+    const state = { config: null, date: null, type: null, duration: null, avail: null, sel: null };
     const MY_KEY = 'pp.bookings';
 
     function dayLabel(date) {
@@ -114,13 +121,38 @@
       }
     }
 
+    const currentType = () => state.config.bookingTypes.find(t => t.id === state.type);
+
+    function renderTypes() {
+      const types = state.config.bookingTypes;
+      $('#types').innerHTML = types.map((t, i) => {
+        const notes = [];
+        notes.push(t.extraPerHour ? `+${money(t.extraPerHour, state.config.currency)}/h` : 'Table price only');
+        if (t.minDuration) notes.push(`min ${t.minDuration % 60 === 0 ? `${t.minDuration / 60}h` : `${t.minDuration}m`}`);
+        return `<button type="button" class="type-opt tc-${i % 5}${t.id === state.type ? ' on' : ''}" data-type="${esc(t.id)}" aria-pressed="${t.id === state.type}">
+          <div class="tl1">${esc(t.label)}</div><div class="tl2">${esc(notes.join(' · '))}</div></button>`;
+      }).join('');
+    }
+
+    $('#types').addEventListener('click', e => {
+      const b = e.target.closest('[data-type]');
+      if (!b) return;
+      state.type = b.dataset.type;
+      const min = currentType().minDuration || 0;
+      if (state.duration < min) state.duration = state.config.durations.find(d => d >= min) || state.duration;
+      if (state.sel && !fits(state.sel.tableId, state.sel.start)) state.sel = null;
+      renderTypes(); renderDurations(); renderGrid();
+    });
+
     function renderDurations() {
       const el = $('#durations');
       el.innerHTML = '';
+      const min = currentType().minDuration || 0;
       for (const d of state.config.durations) {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = d === state.duration ? 'on' : '';
+        b.disabled = d < min;
         b.textContent = d % 60 === 0 ? `${d / 60}h` : d > 60 ? `${Math.floor(d / 60)}h ${d % 60}m` : `${d}m`;
         b.onclick = () => {
           state.duration = d;
@@ -157,7 +189,7 @@
       const bookable = a.slots.filter(s => !s.past);
       if (a.closed || bookable.length === 0) {
         msg.textContent = a.closed ? 'Closed on this day.' : 'No more times left today. Try another day.';
-        msg.classList.remove('hidden');
+        msg.className = 'muted small';
         $('#legend').classList.add('hidden');
         renderForm();
         return;
@@ -200,7 +232,7 @@
       for (let t = state.sel.start; t < state.sel.start + state.duration; t += state.avail.slotMinutes) {
         total += state.avail.slots.find(s => s.start === t).price;
       }
-      return total;
+      return total + currentType().extraPerHour * state.duration / 60;
     }
 
     function renderForm() {
@@ -211,6 +243,7 @@
         <dt>Day</dt><dd>${esc(prettyDate(state.date))}</dd>
         <dt>Time</dt><dd>${toHHMM(state.sel.start)} – ${toHHMM(state.sel.start + state.duration)}</dd>
         <dt>Table</dt><dd>${esc(table.name)}</dd>
+        <dt>Session</dt><dd>${esc(currentType().label)}</dd>
         <dt>Price</dt><dd class="price">${esc(money(selectionPrice(), state.config.currency))}</dd>`;
       card.classList.remove('hidden');
     }
@@ -246,6 +279,7 @@
             date: state.date,
             start: toHHMM(state.sel.start),
             duration: state.duration,
+            type: state.type,
             name: $('#name').value,
             phone: $('#phone').value,
             players: Number($('#players').value),
@@ -254,7 +288,7 @@
         store.set('pp.me', { name: $('#name').value, phone: $('#phone').value });
         const mine = store.get(MY_KEY, []);
         const b = res.booking;
-        mine.push({ code: b.code, token: res.manageToken, date: b.date, start: b.start, end: b.end, table: b.table.name });
+        mine.push({ code: b.code, token: res.manageToken, date: b.date, start: b.start, end: b.end, table: b.table.name, type: b.typeLabel });
         store.set(MY_KEY, mine);
         showDone(res);
       } catch (err) {
@@ -263,9 +297,10 @@
           state.sel = null;
           await loadAvailability();
           $('#grid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+          // The form closes with the selection, so show the error above the grid
           const msg = $('#gridMsg');
           msg.textContent = err.message;
-          msg.classList.remove('hidden');
+          msg.className = 'alert err';
         }
       } finally {
         btn.disabled = false;
@@ -273,7 +308,12 @@
       }
     });
 
+    let lastDone = null;
+
     function showDone({ booking: b, manageUrl }) {
+      lastDone = { booking: b, manageUrl };
+      haptic('SUCCESS');
+      $('#shareLink').classList.toggle('hidden', !canShare());
       $('#picker').classList.add('hidden');
       $('#myBookings').classList.add('hidden');
       $('#doneCode').textContent = b.code;
@@ -281,6 +321,7 @@
         <dt>Day</dt><dd>${esc(prettyDate(b.date))}</dd>
         <dt>Time</dt><dd>${b.start} – ${b.end}</dd>
         <dt>Table</dt><dd>${esc(b.table.name)}</dd>
+        <dt>Session</dt><dd>${esc(b.typeLabel)}</dd>
         <dt>Players</dt><dd>${b.players}</dd>
         <dt>Price</dt><dd>${esc(money(b.price, b.currency))} <span class="muted small">(pay at the desk)</span></dd>`;
       $('#doneLink').value = manageUrl;
@@ -291,6 +332,15 @@
     $('#copyLink').onclick = async () => {
       try { await navigator.clipboard.writeText($('#doneLink').value); $('#copyLink').textContent = 'Copied'; }
       catch { $('#doneLink').select(); }
+    };
+
+    $('#shareLink').onclick = () => {
+      const { booking: b, manageUrl } = lastDone;
+      shareLink({
+        title: `${state.config.centerName} booking ${b.code}`,
+        text: `Ping pong: ${prettyDate(b.date)} ${b.start}–${b.end}, ${b.table.name} (${b.typeLabel}). Code ${b.code}`,
+        url: manageUrl,
+      }).catch(() => {});
     };
 
     $('#again').onclick = () => {
@@ -310,8 +360,8 @@
       $('#myBookingsList').innerHTML = mine
         .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))
         .map(b => `<li><div class="grow"><strong>${esc(prettyDate(b.date, { weekday: 'short', day: 'numeric', month: 'short' }))}</strong>
-          · ${esc(b.start)}–${esc(b.end)} · ${esc(b.table)}</div>
-          <a class="btn sm ghost" href="/manage?code=${encodeURIComponent(b.code)}&t=${encodeURIComponent(b.token)}">View</a></li>`)
+          · ${esc(b.start)}–${esc(b.end)} · ${esc(b.table)}${b.type ? `<div class="muted small">${esc(b.type)}</div>` : ''}</div>
+          <a class="btn sm ghost" href="manage.html?code=${encodeURIComponent(b.code)}&t=${encodeURIComponent(b.token)}">View</a></li>`)
         .join('');
     }
 
@@ -334,6 +384,7 @@
       const me = store.get('pp.me', null);
       if (me) { $('#name').value = me.name || ''; $('#phone').value = me.phone || ''; }
 
+      state.type = c.bookingTypes[0].id;
       state.duration = c.durations.includes(60) ? 60 : c.durations[0];
       state.date = c.today;
       for (let i = 0; i <= c.maxAdvanceDays; i++) {
@@ -342,6 +393,7 @@
       }
       renderMyBookings();
       renderDates();
+      renderTypes();
       renderDurations();
       await loadAvailability();
     }

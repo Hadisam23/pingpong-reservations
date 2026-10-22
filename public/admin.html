@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Front Desk</title>
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="styles.css">
   <style>
     .tabs { display: flex; gap: 6px; }
     .tabs button { font: inherit; border: 1px solid var(--border); background: var(--card); color: var(--text); padding: 7px 14px; border-radius: 999px; cursor: pointer; }
@@ -23,7 +23,12 @@
     .tl .slot:hover { background: var(--accent-soft); border-color: var(--accent); }
     .tl .bk { border-radius: 7px; padding: 3px 6px; font-size: 12px; line-height: 1.25; overflow: hidden; cursor: pointer; text-align: left; font-family: inherit;
       border: 1px solid var(--accent); background: var(--accent-soft); color: var(--text); z-index: 1; }
-    .tl .bk.checked_in { border-color: var(--ok); background: var(--ok-soft); }
+    .tl .bk { border-left: 4px solid var(--tc, var(--accent)); }
+    .tl .bk.checked_in { background: var(--ok-soft); }
+    .typebar { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 14px; }
+    .type-row { display: grid; grid-template-columns: 1fr 2fr 80px 80px auto; gap: 6px; align-items: center; margin-bottom: 6px; }
+    .type-row input { padding: 7px 8px; }
+    @media (max-width: 520px) { .type-row { grid-template-columns: 1fr 1fr; } }
     .tl .bk strong { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .tl .blk { border-radius: 7px; padding: 3px 6px; font-size: 11px; color: var(--muted); z-index: 1; overflow: hidden;
       background: repeating-linear-gradient(135deg, var(--cell-busy) 0 6px, transparent 6px 10px); border: 1px solid var(--border); }
@@ -74,6 +79,7 @@
       </div>
       <div id="dayError" class="alert err hidden"></div>
       <div class="stats" id="stats"></div>
+      <div class="typebar" id="typebar"></div>
 
       <div class="card">
         <h2>Timeline <span class="muted small" style="font-weight:400">· tap an empty slot for a walk-in, tap a booking for actions</span></h2>
@@ -96,6 +102,7 @@
               <div class="field"><label for="wPhone">Phone (optional)</label><input id="wPhone" type="tel"></div>
               <div class="field"><label for="wPlayers">Players</label><input id="wPlayers" type="number" min="1" value="2"></div>
             </div>
+            <div class="field"><label for="wType">Session</label><select id="wType"></select></div>
             <button class="btn" type="submit">Add booking</button>
           </form>
         </div>
@@ -160,6 +167,12 @@
             <div class="inline" id="peakDays"></div>
           </div>
           <div class="card">
+            <h2>Session types</h2>
+            <p class="muted small" style="margin-bottom:8px">id · label · extra per hour · min minutes</p>
+            <div id="typeRows"></div>
+            <button class="btn sm ghost" type="button" id="addType">Add type</button>
+          </div>
+          <div class="card">
             <h2>Booking rules</h2>
             <div class="row">
               <div class="field"><label for="rSlot">Slot size (min)</label>
@@ -195,7 +208,8 @@
     </div>
   </div>
 
-  <script src="/common.js"></script>
+  <script src="config.js"></script>
+  <script src="common.js"></script>
   <script>
     const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     let password = null;
@@ -283,6 +297,15 @@
         ['Expected', money(revenue, config.currency)],
       ].map(([k, v]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${k}</div></div>`).join('');
 
+      const types = config.bookingTypes;
+      $('#typebar').innerHTML = types.map((t, i) => {
+        const n = active.filter(b => b.type === t.id).length;
+        return `<span class="tag tc-${i % 5}">${esc(t.label)}: ${n}</span>`;
+      }).join('');
+      const keepType = $('#wType').value;
+      $('#wType').innerHTML = types.map(t => `<option value="${esc(t.id)}">${esc(t.label)}</option>`).join('');
+      if (keepType) $('#wType').value = keepType;
+
       const tableOpts = day.tables.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
       const keep = [$('#wTable').value, $('#bTable').value];
       $('#wTable').innerHTML = tableOpts;
@@ -300,6 +323,7 @@
 
       $('#bookingList').innerHTML = day.bookings.map(b => `<li>
         <div class="grow"><strong>${esc(b.start)}–${esc(b.end)}</strong> · ${esc(b.table.name)} · ${esc(b.name)}
+          <span class="tag tc-${typeColorIndex(config.bookingTypes, b.type)}">${esc(b.typeLabel)}</span>
           <div class="muted small">${esc(b.code)} · ${b.players} players${b.phone ? ` · <a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>` : ''} · ${esc(money(b.price, b.currency))} · ${b.source}</div></div>
         <span class="badge ${b.status}">${statusLabel(b.status)}</span>
         <button class="btn sm ghost" type="button" data-open="${esc(b.code)}">Open</button></li>`).join('')
@@ -343,8 +367,8 @@
       for (const b of active) {
         const [s, e] = clamp(toMin(b.start), toMin(b.end));
         if (s >= e || col(b.table.id) < 2) continue;
-        html += `<button type="button" class="bk ${b.status}" data-open="${esc(b.code)}" style="grid-row:${rowOf(s)} / ${rowOf(e - 1) + 1};grid-column:${col(b.table.id)}">
-          <strong>${b.status === 'checked_in' ? '✓ ' : ''}${esc(b.name)}</strong><span class="muted">${esc(b.start)}–${esc(b.end)} · ${b.players}p</span></button>`;
+        html += `<button type="button" class="bk ${b.status} tc-${typeColorIndex(config.bookingTypes, b.type)}" title="${esc(b.typeLabel)}" data-open="${esc(b.code)}" style="grid-row:${rowOf(s)} / ${rowOf(e - 1) + 1};grid-column:${col(b.table.id)}">
+          <strong>${b.status === 'checked_in' ? '✓ ' : ''}${esc(b.name)}</strong><span class="muted">${esc(b.start)}–${esc(b.end)} · ${b.players}p · ${esc(b.typeLabel)}</span></button>`;
       }
       tl.innerHTML = html;
     }
@@ -379,6 +403,7 @@
           body: {
             tableId: Number($('#wTable').value), date, start: $('#wStart').value, duration: Number($('#wDur').value),
             name: $('#wName').value, phone: $('#wPhone').value || null, players: Number($('#wPlayers').value),
+            type: $('#wType').value,
           },
         });
         flash('#walkMsg', `Booked ${res.booking.table.name} ${res.booking.start}–${res.booking.end} for ${res.booking.name} (${res.booking.code})`, 'ok');
@@ -425,6 +450,7 @@
         <dt>Code</dt><dd>${esc(b.code)}</dd>
         <dt>Time</dt><dd>${esc(b.start)} – ${esc(b.end)}</dd>
         <dt>Table</dt><dd>${esc(b.table.name)}</dd>
+        <dt>Session</dt><dd><span class="tag tc-${typeColorIndex(config.bookingTypes, b.type)}">${esc(b.typeLabel)}</span></dd>
         <dt>Players</dt><dd>${b.players}</dd>
         <dt>Phone</dt><dd>${b.phone ? `<a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>` : '—'}</dd>
         <dt>Price</dt><dd>${esc(money(b.price, b.currency))}</dd>
@@ -483,6 +509,8 @@
       $('#pStart').value = s.pricing.peakStart || '';
       $('#peakDays').innerHTML = WEEKDAYS.map((d, i) =>
         `<label><input type="checkbox" data-peak="${i}" ${s.pricing.peakDays.includes(i) ? 'checked' : ''}> ${d}</label>`).join('');
+      $('#typeRows').innerHTML = '';
+      s.bookingTypes.forEach(addTypeRow);
       $('#rSlot').value = String(s.slotMinutes);
       $('#rDur').value = s.durations.join(', ');
       $('#rAdv').value = s.maxAdvanceDays;
@@ -490,6 +518,28 @@
       $('#rCancel').value = s.cancelCutoffMinutes;
       $('#rPhone').value = s.maxActiveBookingsPerPhone;
       $('#rPlayers').value = s.maxPlayersPerTable;
+    }
+
+    function addTypeRow(t = { id: '', label: '', extraPerHour: 0 }) {
+      const row = document.createElement('div');
+      row.className = 'type-row';
+      row.innerHTML = `<input data-k="id" placeholder="id" value="${esc(t.id)}" aria-label="Type id">
+        <input data-k="label" placeholder="Label" value="${esc(t.label)}" aria-label="Type label">
+        <input data-k="extraPerHour" type="number" min="0" value="${t.extraPerHour}" aria-label="Extra per hour">
+        <input data-k="minDuration" type="number" min="0" step="15" placeholder="—" value="${t.minDuration || ''}" aria-label="Minimum minutes">
+        <button class="btn sm ghost" type="button" aria-label="Remove type">✕</button>`;
+      row.querySelector('button').onclick = () => row.remove();
+      $('#typeRows').appendChild(row);
+    }
+    $('#addType').onclick = () => addTypeRow();
+
+    function readTypes() {
+      return [...document.querySelectorAll('#typeRows .type-row')].map(row => {
+        const v = k => row.querySelector(`[data-k=${k}]`).value.trim();
+        const t = { id: v('id'), label: v('label'), extraPerHour: Number(v('extraPerHour') || 0) };
+        if (Number(v('minDuration'))) t.minDuration = Number(v('minDuration'));
+        return t;
+      });
     }
 
     $('#saveSettings').onclick = async () => {
@@ -514,6 +564,7 @@
         cancelCutoffMinutes: Number($('#rCancel').value),
         maxActiveBookingsPerPhone: Number($('#rPhone').value),
         maxPlayersPerTable: Number($('#rPlayers').value),
+        bookingTypes: readTypes(),
       };
       try {
         const saved = await adminApi('/settings', { method: 'PUT', body });

@@ -27,6 +27,15 @@ const DEFAULT_SETTINGS = {
     peakStart: '17:00',
     peakDays: [5, 6],
   },
+  // Kinds of reservation. extraPerHour is added on top of the table rate;
+  // minDuration (optional) forces a longer booking, e.g. for parties.
+  bookingTypes: [
+    { id: 'casual', label: 'Casual play', extraPerHour: 0 },
+    { id: 'training', label: 'Training with robot', extraPerHour: 30 },
+    { id: 'coaching', label: 'Private coaching', extraPerHour: 120 },
+    { id: 'league', label: 'League match', extraPerHour: 0 },
+    { id: 'party', label: 'Birthday / event', extraPerHour: 50, minDuration: 120 },
+  ],
 };
 
 const isInt = (v, min, max) => Number.isInteger(v) && v >= min && v <= max;
@@ -64,6 +73,19 @@ function validateSettings(s) {
   if (typeof p.peakPerHour !== 'number' || p.peakPerHour < 0) return 'peakPerHour must be >= 0';
   if (p.peakStart !== null && parseHHMM(p.peakStart) === null) return 'peakStart must be HH:MM or null';
   if (!Array.isArray(p.peakDays) || !p.peakDays.every(d => isInt(d, 0, 6))) return 'peakDays must be weekday numbers 0-6';
+
+  if (!Array.isArray(s.bookingTypes) || s.bookingTypes.length === 0) return 'bookingTypes must be a non-empty list';
+  const ids = new Set();
+  for (const t of s.bookingTypes) {
+    if (!t || typeof t.id !== 'string' || !/^[a-z0-9_-]{1,30}$/.test(t.id)) return 'each booking type needs an id (a-z, 0-9, - or _)';
+    if (ids.has(t.id)) return `duplicate booking type id: ${t.id}`;
+    ids.add(t.id);
+    if (typeof t.label !== 'string' || !t.label.trim() || t.label.length > 40) return 'each booking type needs a label (1-40 characters)';
+    if (typeof t.extraPerHour !== 'number' || t.extraPerHour < 0) return 'booking type extraPerHour must be >= 0';
+    if (t.minDuration !== undefined && t.minDuration !== null && (!isInt(t.minDuration, 1, 480) || t.minDuration % s.slotMinutes !== 0)) {
+      return 'booking type minDuration must be a multiple of slotMinutes';
+    }
+  }
   return null;
 }
 

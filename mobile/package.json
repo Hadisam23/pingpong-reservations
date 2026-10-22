@@ -1,0 +1,27 @@
+{
+  "name": "pingpong-reservations-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capacitor iOS app for the ping pong center reservation system",
+  "scripts": {
+    "build": "node scripts/build-web.js",
+    "sync": "npm run build && cap sync ios",
+    "open": "cap open ios",
+    "ios": "npm run sync && cap run ios",
+    "test:e2e": "node --test --test-concurrency=1 test/e2e.test.js",
+    "test:ios": "bash scripts/test-ios.sh"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.5.3",
+    "@capacitor/haptics": "8.0.2",
+    "@capacitor/ios": "8.5.3",
+    "@capacitor/share": "8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3",
+    "playwright": "1.56.1"
+  }
+}

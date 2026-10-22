@@ -3,13 +3,32 @@ const path = require('path');
 const { openDb } = require('./db');
 const { createService, ApiError, safeEqual } = require('./service');
 
-function createApp({ dbFile = ':memory:', adminPassword = null, baseUrl = null, now } = {}) {
+// Origins the Capacitor app runs on (iOS: capacitor://localhost, Android: http(s)://localhost).
+const APP_ORIGINS = ['capacitor://localhost', 'ionic://localhost', 'http://localhost', 'https://localhost'];
+
+function createApp({ dbFile = ':memory:', adminPassword = null, baseUrl = null, corsOrigins = [], now } = {}) {
   const db = openDb(dbFile);
   const service = createService(db, { now });
   const app = express();
 
   app.disable('x-powered-by');
   app.use(express.json({ limit: '50kb' }));
+
+  const allowedOrigins = new Set([...APP_ORIGINS, ...corsOrigins]);
+  app.use('/api', (req, res, next) => {
+    const origin = req.get('origin');
+    if (origin && allowedOrigins.has(origin)) {
+      res.set({
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Headers': 'content-type, authorization',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+        'Access-Control-Max-Age': '600',
+        Vary: 'Origin',
+      });
+      if (req.method === 'OPTIONS') return res.status(204).end();
+    }
+    next();
+  });
 
   const publicUrl = req => baseUrl || `${req.protocol}://${req.get('host')}`;
   const manageUrl = (req, code, token) => `${publicUrl(req)}/manage?code=${code}&t=${encodeURIComponent(token)}`;
@@ -31,6 +50,7 @@ function createApp({ dbFile = ':memory:', adminPassword = null, baseUrl = null, 
       maxPlayersPerTable: s.maxPlayersPerTable,
       hours: s.hours,
       pricing: s.pricing,
+      bookingTypes: s.bookingTypes,
       today: service.today().date,
     });
   });

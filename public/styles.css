@@ -18,6 +18,12 @@
   --cell-busy: #E4E7EB;
   --cell-past: transparent;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);
+  /* booking type colors */
+  --type-0: #1F6FEB;
+  --type-1: #8250DF;
+  --type-2: #1A7F37;
+  --type-3: #BF3989;
+  --type-4: #9A6700;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -40,6 +46,11 @@
     --cell-free-hover: #1F4A2C;
     --cell-busy: #21262D;
     --shadow: none;
+    --type-0: #4C8DFF;
+    --type-1: #A371F7;
+    --type-2: #3FB950;
+    --type-3: #F778BA;
+    --type-4: #D29922;
   }
 }
 
@@ -51,8 +62,11 @@ body {
   color: var(--text);
   line-height: 1.45;
   font-size: 15px;
-  padding: 16px;
+  /* safe areas: notch / home indicator inside the iOS app (viewport-fit=cover) */
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .container { max-width: 720px; margin: 0 auto; }
@@ -185,7 +199,26 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 .list li:last-child { border-bottom: 0; }
 .list .grow { flex: 1; min-width: 0; }
 
+/* booking types */
+.types { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.type-opt {
+  font: inherit; color: var(--text); text-align: left; cursor: pointer;
+  border: 1px solid var(--border); background: var(--card); border-radius: 12px; padding: 10px 12px;
+  border-left: 4px solid var(--tc, var(--border));
+}
+.type-opt .tl1 { font-weight: 600; font-size: 14px; }
+.type-opt .tl2 { font-size: 12px; color: var(--muted); }
+.type-opt.on { border-color: var(--tc); background: color-mix(in srgb, var(--tc) 10%, transparent); }
+.tag { display: inline-block; font-size: 11px; font-weight: 600; border-radius: 6px; padding: 1px 6px;
+  color: var(--tc); background: color-mix(in srgb, var(--tc) 14%, transparent); }
+.tc-0 { --tc: var(--type-0); } .tc-1 { --tc: var(--type-1); } .tc-2 { --tc: var(--type-2); }
+.tc-3 { --tc: var(--type-3); } .tc-4 { --tc: var(--type-4); }
+.segmented button:disabled { color: var(--muted); opacity: .5; cursor: not-allowed; }
+
 @media (max-width: 520px) {
-  body { padding: 12px; }
+  body {
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+      max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  }
   .row3 { grid-template-columns: 1fr 1fr; }
 }

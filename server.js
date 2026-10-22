@@ -5,7 +5,8 @@ const PORT = process.env.PORT || 3000;
 const dbFile = process.env.DB_PATH || path.join(__dirname, 'data', 'pingpong.db');
 const adminPassword = process.env.ADMIN_PASSWORD || null;
 
-const { app, db } = createApp({ dbFile, adminPassword, baseUrl: process.env.BASE_URL || null });
+const corsOrigins = (process.env.CORS_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
+const { app, db } = createApp({ dbFile, adminPassword, corsOrigins, baseUrl: process.env.BASE_URL || null });
 
 if (!adminPassword) {
   console.warn('ADMIN_PASSWORD is not set: the admin panel is disabled.');

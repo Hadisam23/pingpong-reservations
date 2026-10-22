@@ -43,7 +43,7 @@ test('config and availability', async () => {
 
   const av = await call('GET', `/api/availability?date=${TODAY}`);
   assert.equal(av.status, 200);
-  assert.equal(av.body.tables.length, 6);
+  assert.equal(av.body.tables.length, 5);
   assert.equal(av.body.slots[0].time, '10:00');
   assert.equal(av.body.slots.at(-1).time, '22:30');
   assert.equal(av.body.slots.find(s => s.time === '12:00').past, true);
@@ -213,11 +213,47 @@ test('admin: tables and settings', async () => {
   assert.equal(deactivate.body.error.code, 'table_has_bookings');
   assert.equal((await call('PATCH', '/api/admin/tables/3', { active: false, name: 'Broken' }, adminHeaders)).body.active, false);
   const av = await call('GET', `/api/availability?date=${NEXT_SUN}`);
-  assert.equal(av.body.tables.length, 6); // 6 + 1 added - 1 inactive
+  assert.equal(av.body.tables.length, 5); // 5 + 1 added - 1 inactive
 
   const bad = await call('PUT', '/api/admin/settings', { durations: [45] }, adminHeaders);
   assert.equal(bad.status, 400);
   const ok = await call('PUT', '/api/admin/settings', { pricing: { peakPerHour: 80 } }, adminHeaders);
   assert.equal(ok.body.pricing.peakPerHour, 80);
   assert.equal(ok.body.pricing.offPeakPerHour, 40);
+});
+
+test('booking types change the price and can require a minimum duration', async () => {
+  const cfg = await call('GET', '/api/config');
+  assert.deepEqual(cfg.body.bookingTypes.map(t => t.id), ['casual', 'training', 'coaching', 'league', 'party']);
+
+  const casual = await book();
+  assert.equal(casual.body.booking.type, 'casual'); // default
+  assert.equal(casual.body.booking.typeLabel, 'Casual play');
+
+  // 60 min off-peak (40) + coaching extra 120/h
+  const coaching = await book({ tableId: 2, type: 'coaching' });
+  assert.equal(coaching.status, 201);
+  assert.equal(coaching.body.booking.price, 160);
+
+  const shortParty = await book({ tableId: 3, type: 'party', duration: 60 });
+  assert.equal(shortParty.body.error.code, 'too_short_for_type');
+  // 120 min off-peak (80) + party extra 50/h (100)
+  assert.equal((await book({ tableId: 3, type: 'party', duration: 120, phone: '0500000003' })).body.booking.price, 180);
+
+  assert.equal((await book({ tableId: 4, type: 'disco' })).body.error.code, 'invalid_type');
+
+  const badTypes = await call('PUT', '/api/admin/settings', { bookingTypes: [{ id: 'Bad Id', label: 'x', extraPerHour: 0 }] }, adminHeaders);
+  assert.equal(badTypes.status, 400);
+});
+
+test('CORS allows the Capacitor app origin only', async () => {
+  const pre = await fetch(`${base}/api/bookings`, {
+    method: 'OPTIONS',
+    headers: { origin: 'capacitor://localhost', 'access-control-request-method': 'POST' },
+  });
+  assert.equal(pre.status, 204);
+  assert.equal(pre.headers.get('access-control-allow-origin'), 'capacitor://localhost');
+
+  const other = await fetch(`${base}/api/config`, { headers: { origin: 'https://evil.example' } });
+  assert.equal(other.headers.get('access-control-allow-origin'), null);
 });

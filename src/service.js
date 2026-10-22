@@ -60,8 +60,8 @@ function createService(db, { now = () => new Date() } = {}) {
     upcomingForPhone: db.prepare(`SELECT COUNT(*) AS count FROM bookings
       WHERE phone = ? AND status = 'confirmed' AND (date > ? OR (date = ? AND endMin > ?))`),
     insertBooking: db.prepare(`INSERT INTO bookings
-      (code, manageToken, tableId, date, startMin, endMin, name, phone, players, price, status, source, createdAt, updatedAt)
-      VALUES (@code, @manageToken, @tableId, @date, @startMin, @endMin, @name, @phone, @players, @price, 'confirmed', @source, @now, @now)`),
+      (code, manageToken, tableId, date, startMin, endMin, name, phone, players, price, type, status, source, createdAt, updatedAt)
+      VALUES (@code, @manageToken, @tableId, @date, @startMin, @endMin, @name, @phone, @players, @price, @type, 'confirmed', @source, @now, @now)`),
     codeExists: db.prepare('SELECT 1 FROM bookings WHERE code = ?'),
     getBooking: db.prepare('SELECT b.*, t.name AS tableName FROM bookings b JOIN tables t ON t.id = b.tableId WHERE b.code = ?'),
     setStatus: db.prepare('UPDATE bookings SET status = ?, updatedAt = ? WHERE code = ?'),
@@ -114,9 +114,15 @@ function createService(db, { now = () => new Date() } = {}) {
     return rate * settings.slotMinutes / 60;
   }
 
-  function priceFor(settings, date, startMin, endMin) {
+  function findType(settings, id) {
+    return settings.bookingTypes.find(t => t.id === id) || null;
+  }
+
+  function priceFor(settings, date, startMin, endMin, typeId) {
     let total = 0;
     for (let t = startMin; t < endMin; t += settings.slotMinutes) total += slotPrice(settings, date, t);
+    const type = findType(settings, typeId);
+    if (type) total += type.extraPerHour * (endMin - startMin) / 60;
     return Math.round(total * 100) / 100;
   }
 
@@ -215,8 +221,11 @@ function createService(db, { now = () => new Date() } = {}) {
   // ---------- bookings ----------
 
   function formatBooking(row, settings) {
+    const type = findType(settings, row.type);
     return {
       code: row.code,
+      type: row.type,
+      typeLabel: type ? type.label : row.type,
       table: { id: row.tableId, name: row.tableName },
       date: row.date,
       start: formatHHMM(row.startMin),
@@ -273,6 +282,12 @@ function createService(db, { now = () => new Date() } = {}) {
       if (tooEarly) throw new ApiError(400, 'in_past', 'That time has already passed');
     }
 
+    const type = findType(settings, input.type === undefined || input.type === null || input.type === '' ? settings.bookingTypes[0].id : input.type);
+    if (!type) throw new ApiError(400, 'invalid_type', `Type must be one of: ${settings.bookingTypes.map(t => t.id).join(', ')}`);
+    if (type.minDuration && duration < type.minDuration) {
+      throw new ApiError(400, 'too_short_for_type', `${type.label} needs at least ${type.minDuration} minutes`);
+    }
+
     const name = String(input.name ?? '').trim();
     if (name.length < 2 || name.length > 60) throw new ApiError(400, 'invalid_name', 'Please enter your name (2-60 characters)');
 
@@ -287,7 +302,7 @@ function createService(db, { now = () => new Date() } = {}) {
       throw new ApiError(400, 'invalid_players', `Players must be 1-${settings.maxPlayersPerTable}`);
     }
 
-    const price = priceFor(settings, date, startMin, endMin);
+    const price = priceFor(settings, date, startMin, endMin, type.id);
 
     const insert = db.transaction(() => {
       if (stmts.overlappingBooking.get(table.id, date, endMin, startMin)) {
@@ -306,7 +321,7 @@ function createService(db, { now = () => new Date() } = {}) {
       do { code = randomCode(); } while (stmts.codeExists.get(code));
       const manageToken = crypto.randomBytes(24).toString('base64url');
       stmts.insertBooking.run({
-        code, manageToken, tableId: table.id, date, startMin, endMin, name, phone, players, price,
+        code, manageToken, tableId: table.id, date, startMin, endMin, name, phone, players, price, type: type.id,
         source: admin ? 'desk' : 'online', now: now().toISOString(),
       });
       return { code, manageToken };
@@ -420,6 +435,7 @@ function createService(db, { now = () => new Date() } = {}) {
     getAvailability, createBooking, getBookingForCustomer, cancelByCustomer,
     getDay, setBookingStatus, addBlock, removeBlock,
     today: () => localNow(getSettings()),
+    quote: (date, startMin, endMin, typeId) => priceFor(getSettings(), date, startMin, endMin, typeId),
   };
 }
 
