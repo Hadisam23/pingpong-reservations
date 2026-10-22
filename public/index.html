@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Book a Table</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="container">
+    <header class="top">
+      <div class="logo" aria-hidden="true">🏓</div>
+      <div>
+        <h1 id="centerName">Book a table</h1>
+        <p id="subtitle">Pick a day, a time and a table</p>
+      </div>
+    </header>
+
+    <div id="loadError" class="alert err hidden"></div>
+
+    <div id="myBookings" class="card hidden">
+      <h2>Your upcoming bookings</h2>
+      <ul class="list" id="myBookingsList"></ul>
+    </div>
+
+    <div id="picker">
+      <div class="card">
+        <h2>1. Day</h2>
+        <div class="chips" id="dates"></div>
+      </div>
+
+      <div class="card">
+        <h2>2. How long?</h2>
+        <div class="segmented" id="durations"></div>
+      </div>
+
+      <div class="card">
+        <h2>3. Time &amp; table</h2>
+        <div id="gridMsg" class="muted small hidden"></div>
+        <div class="grid-wrap"><div class="grid" id="grid"></div></div>
+        <div class="legend" id="legend">
+          <span class="l-free">Free</span><span class="l-busy">Taken</span><span class="l-sel">Your pick</span><span class="l-peak">Peak price</span>
+        </div>
+      </div>
+
+      <div class="card hidden" id="formCard">
+        <h2>4. Your details</h2>
+        <dl class="summary" id="summary"></dl>
+        <div id="formError" class="alert err hidden"></div>
+        <form id="form" novalidate>
+          <div class="field">
+            <label for="name">Name</label>
+            <input id="name" autocomplete="name" required maxlength="60">
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="phone">Phone</label>
+              <input id="phone" type="tel" autocomplete="tel" inputmode="tel" required placeholder="050-123-4567">
+            </div>
+            <div class="field">
+              <label for="players">Players</label>
+              <select id="players"></select>
+            </div>
+          </div>
+          <button class="btn block" id="submit" type="submit">Book</button>
+          <p class="muted small" style="margin-top:10px" id="policy"></p>
+        </form>
+      </div>
+    </div>
+
+    <div class="card hidden" id="done">
+      <div class="alert ok">You're booked! See you at the table.</div>
+      <p class="muted small" style="text-align:center">Your booking code</p>
+      <div class="code-big" id="doneCode"></div>
+      <dl class="summary" id="doneSummary"></dl>
+      <label for="doneLink">Your private link to view or cancel</label>
+      <div class="copy-line">
+        <input id="doneLink" readonly>
+        <button class="btn ghost" id="copyLink" type="button">Copy</button>
+      </div>
+      <p class="muted small" style="margin:8px 0 14px">This page remembers the booking too. Lost the link? Use your code and phone number on the <a href="/manage">manage page</a>.</p>
+      <button class="btn block ghost" id="again" type="button">Book another table</button>
+    </div>
+
+    <p class="muted small" style="text-align:center;margin-top:8px"><a href="/manage">Find or cancel a booking</a></p>
+  </div>
+
+  <script src="/common.js"></script>
+  <script>
+    const state = { config: null, date: null, duration: null, avail: null, sel: null };
+    const MY_KEY = 'pp.bookings';
+
+    function dayLabel(date) {
+      if (date === state.config.today) return 'Today';
+      if (date === addDays(state.config.today, 1)) return 'Tmrw';
+      return new Date(`${date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', timeZone: 'UTC' });
+    }
+
+    function renderDates() {
+      const { today, maxAdvanceDays, hours } = state.config;
+      const el = $('#dates');
+      el.innerHTML = '';
+      for (let i = 0; i <= maxAdvanceDays; i++) {
+        const date = addDays(today, i);
+        const closed = !hours[new Date(`${date}T00:00:00Z`).getUTCDay()];
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip' + (date === state.date ? ' on' : '');
+        b.disabled = closed;
+        b.title = closed ? 'Closed' : prettyDate(date);
+        b.innerHTML = `<div class="d1">${esc(closed ? 'Closed' : dayLabel(date))}</div><div class="d2">${Number(date.slice(8))}</div>`;
+        b.onclick = () => { state.date = date; state.sel = null; renderDates(); loadAvailability(); };
+        el.appendChild(b);
+      }
+    }
+
+    function renderDurations() {
+      const el = $('#durations');
+      el.innerHTML = '';
+      for (const d of state.config.durations) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = d === state.duration ? 'on' : '';
+        b.textContent = d % 60 === 0 ? `${d / 60}h` : d > 60 ? `${Math.floor(d / 60)}h ${d % 60}m` : `${d}m`;
+        b.onclick = () => {
+          state.duration = d;
+          if (state.sel && !fits(state.sel.tableId, state.sel.start)) state.sel = null;
+          renderDurations(); renderGrid();
+        };
+        el.appendChild(b);
+      }
+    }
+
+    function slotState(table, slot) {
+      if (slot.past) return 'past';
+      const end = slot.start + state.avail.slotMinutes;
+      return table.busy.some(b => b.start < end && b.end > slot.start) ? 'busy' : 'free';
+    }
+
+    function fits(tableId, start) {
+      const table = state.avail.tables.find(t => t.id === tableId);
+      if (!table) return false;
+      const end = start + state.duration;
+      for (let t = start; t < end; t += state.avail.slotMinutes) {
+        const slot = state.avail.slots.find(s => s.start === t);
+        if (!slot || slotState(table, slot) !== 'free') return false;
+      }
+      return true;
+    }
+
+    function renderGrid() {
+      const grid = $('#grid');
+      const msg = $('#gridMsg');
+      grid.innerHTML = '';
+      const a = state.avail;
+      if (!a) return;
+      const bookable = a.slots.filter(s => !s.past);
+      if (a.closed || bookable.length === 0) {
+        msg.textContent = a.closed ? 'Closed on this day.' : 'No more times left today. Try another day.';
+        msg.classList.remove('hidden');
+        $('#legend').classList.add('hidden');
+        renderForm();
+        return;
+      }
+      msg.classList.add('hidden');
+      $('#legend').classList.remove('hidden');
+      grid.style.gridTemplateColumns = `48px repeat(${a.tables.length}, minmax(46px, 1fr))`;
+
+      let html = '<div></div>' + a.tables.map(t => `<div class="th" title="${esc(t.name)}">${esc(t.name.replace(/^Table\s+/i, 'T'))}</div>`).join('');
+      for (const slot of bookable) {
+        html += `<div class="time${slot.peak ? ' peak' : ''}">${slot.time}</div>`;
+        for (const t of a.tables) {
+          const st = slotState(t, slot);
+          const selected = state.sel && state.sel.tableId === t.id && slot.start >= state.sel.start && slot.start < state.sel.start + state.duration;
+          let cls = st;
+          if (st === 'free' && !fits(t.id, slot.start)) cls = 'nofit';
+          if (selected) cls = 'sel';
+          const disabled = cls !== 'free' && cls !== 'sel';
+          html += `<button type="button" class="cell ${cls}" data-t="${t.id}" data-s="${slot.start}" ${disabled ? 'disabled' : ''}
+            aria-label="${esc(t.name)} ${slot.time} ${cls === 'busy' ? 'taken' : cls === 'nofit' ? 'too short' : 'free'}"></button>`;
+        }
+      }
+      grid.innerHTML = html;
+      renderForm();
+    }
+
+    $('#grid').addEventListener('click', e => {
+      const cell = e.target.closest('.cell');
+      if (!cell || cell.disabled) return;
+      const tableId = Number(cell.dataset.t);
+      const start = Number(cell.dataset.s);
+      const isSame = state.sel && state.sel.tableId === tableId && state.sel.start === start;
+      state.sel = isSame ? null : { tableId, start };
+      renderGrid();
+      if (state.sel) $('#formCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+
+    function selectionPrice() {
+      let total = 0;
+      for (let t = state.sel.start; t < state.sel.start + state.duration; t += state.avail.slotMinutes) {
+        total += state.avail.slots.find(s => s.start === t).price;
+      }
+      return total;
+    }
+
+    function renderForm() {
+      const card = $('#formCard');
+      if (!state.sel) { card.classList.add('hidden'); return; }
+      const table = state.avail.tables.find(t => t.id === state.sel.tableId);
+      $('#summary').innerHTML = `
+        <dt>Day</dt><dd>${esc(prettyDate(state.date))}</dd>
+        <dt>Time</dt><dd>${toHHMM(state.sel.start)} – ${toHHMM(state.sel.start + state.duration)}</dd>
+        <dt>Table</dt><dd>${esc(table.name)}</dd>
+        <dt>Price</dt><dd class="price">${esc(money(selectionPrice(), state.config.currency))}</dd>`;
+      card.classList.remove('hidden');
+    }
+
+    async function loadAvailability() {
+      $('#grid').innerHTML = '<div class="muted small">Loading…</div>';
+      try {
+        state.avail = await api(`/api/availability?date=${state.date}`);
+        if (state.sel && !fits(state.sel.tableId, state.sel.start)) state.sel = null;
+        renderGrid();
+      } catch (err) {
+        $('#grid').innerHTML = `<div class="alert err">${esc(err.message)}</div>`;
+      }
+    }
+
+    function showError(message) {
+      const el = $('#formError');
+      el.textContent = message;
+      el.classList.toggle('hidden', !message);
+    }
+
+    $('#form').addEventListener('submit', async e => {
+      e.preventDefault();
+      showError('');
+      const btn = $('#submit');
+      btn.disabled = true;
+      btn.textContent = 'Booking…';
+      try {
+        const res = await api('/api/bookings', {
+          method: 'POST',
+          body: {
+            tableId: state.sel.tableId,
+            date: state.date,
+            start: toHHMM(state.sel.start),
+            duration: state.duration,
+            name: $('#name').value,
+            phone: $('#phone').value,
+            players: Number($('#players').value),
+          },
+        });
+        store.set('pp.me', { name: $('#name').value, phone: $('#phone').value });
+        const mine = store.get(MY_KEY, []);
+        const b = res.booking;
+        mine.push({ code: b.code, token: res.manageToken, date: b.date, start: b.start, end: b.end, table: b.table.name });
+        store.set(MY_KEY, mine);
+        showDone(res);
+      } catch (err) {
+        showError(err.message);
+        if (['slot_taken', 'slot_blocked', 'in_past'].includes(err.code)) {
+          state.sel = null;
+          await loadAvailability();
+          $('#grid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+          const msg = $('#gridMsg');
+          msg.textContent = err.message;
+          msg.classList.remove('hidden');
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Book';
+      }
+    });
+
+    function showDone({ booking: b, manageUrl }) {
+      $('#picker').classList.add('hidden');
+      $('#myBookings').classList.add('hidden');
+      $('#doneCode').textContent = b.code;
+      $('#doneSummary').innerHTML = `
+        <dt>Day</dt><dd>${esc(prettyDate(b.date))}</dd>
+        <dt>Time</dt><dd>${b.start} – ${b.end}</dd>
+        <dt>Table</dt><dd>${esc(b.table.name)}</dd>
+        <dt>Players</dt><dd>${b.players}</dd>
+        <dt>Price</dt><dd>${esc(money(b.price, b.currency))} <span class="muted small">(pay at the desk)</span></dd>`;
+      $('#doneLink').value = manageUrl;
+      $('#done').classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    $('#copyLink').onclick = async () => {
+      try { await navigator.clipboard.writeText($('#doneLink').value); $('#copyLink').textContent = 'Copied'; }
+      catch { $('#doneLink').select(); }
+    };
+
+    $('#again').onclick = () => {
+      $('#done').classList.add('hidden');
+      $('#picker').classList.remove('hidden');
+      $('#copyLink').textContent = 'Copy';
+      state.sel = null;
+      renderMyBookings();
+      loadAvailability();
+    };
+
+    function renderMyBookings() {
+      const today = state.config.today;
+      const mine = store.get(MY_KEY, []).filter(b => b.date >= today);
+      store.set(MY_KEY, mine);
+      $('#myBookings').classList.toggle('hidden', mine.length === 0);
+      $('#myBookingsList').innerHTML = mine
+        .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))
+        .map(b => `<li><div class="grow"><strong>${esc(prettyDate(b.date, { weekday: 'short', day: 'numeric', month: 'short' }))}</strong>
+          · ${esc(b.start)}–${esc(b.end)} · ${esc(b.table)}</div>
+          <a class="btn sm ghost" href="/manage?code=${encodeURIComponent(b.code)}&t=${encodeURIComponent(b.token)}">View</a></li>`)
+        .join('');
+    }
+
+    async function init() {
+      try {
+        state.config = await api('/api/config');
+      } catch (err) {
+        const el = $('#loadError');
+        el.textContent = err.message;
+        el.classList.remove('hidden');
+        return;
+      }
+      const c = state.config;
+      document.title = `Book a Table · ${c.centerName}`;
+      $('#centerName').textContent = c.centerName;
+      $('#policy').textContent = `Free cancellation up to ${c.cancelCutoffMinutes >= 60 && c.cancelCutoffMinutes % 60 === 0
+        ? `${c.cancelCutoffMinutes / 60} hour${c.cancelCutoffMinutes === 60 ? '' : 's'}` : `${c.cancelCutoffMinutes} minutes`} before your start time. Payment at the desk.`;
+      $('#players').innerHTML = Array.from({ length: c.maxPlayersPerTable }, (_, i) =>
+        `<option value="${i + 1}" ${i + 1 === Math.min(2, c.maxPlayersPerTable) ? 'selected' : ''}>${i + 1}</option>`).join('');
+      const me = store.get('pp.me', null);
+      if (me) { $('#name').value = me.name || ''; $('#phone').value = me.phone || ''; }
+
+      state.duration = c.durations.includes(60) ? 60 : c.durations[0];
+      state.date = c.today;
+      for (let i = 0; i <= c.maxAdvanceDays; i++) {
+        const d = addDays(c.today, i);
+        if (c.hours[new Date(`${d}T00:00:00Z`).getUTCDay()]) { state.date = d; break; }
+      }
+      renderMyBookings();
+      renderDates();
+      renderDurations();
+      await loadAvailability();
+    }
+
+    init();
+  </script>
+</body>
+</html>

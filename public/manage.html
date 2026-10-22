@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Booking</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="container" style="max-width:480px">
+    <header class="top">
+      <div class="logo" aria-hidden="true">🏓</div>
+      <div>
+        <h1>Your booking</h1>
+        <p id="centerName">View or cancel</p>
+      </div>
+    </header>
+
+    <div class="card hidden" id="lookup">
+      <h2>Find your booking</h2>
+      <div id="lookupError" class="alert err hidden"></div>
+      <form id="lookupForm" novalidate>
+        <div class="field">
+          <label for="code">Booking code</label>
+          <input id="code" autocomplete="off" autocapitalize="characters" maxlength="6" placeholder="K7QX2M" style="text-transform:uppercase;letter-spacing:.15em">
+        </div>
+        <div class="field">
+          <label for="phone">Phone number used for the booking</label>
+          <input id="phone" type="tel" inputmode="tel" autocomplete="tel">
+        </div>
+        <button class="btn block" type="submit" id="lookupBtn">Find booking</button>
+      </form>
+    </div>
+
+    <div class="card hidden" id="view">
+      <div id="viewMsg" class="alert hidden"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h2 style="margin:0">Booking <span id="vCode" style="font-family:ui-monospace,monospace;letter-spacing:.08em"></span></h2>
+        <span class="badge" id="vStatus"></span>
+      </div>
+      <dl class="summary" id="vSummary"></dl>
+      <div id="cancelArea"></div>
+    </div>
+
+    <p class="muted small" style="text-align:center"><a href="/">Book a table</a></p>
+  </div>
+
+  <script src="/common.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    let creds = null;
+    let booking = null;
+
+    function render() {
+      const b = booking;
+      $('#lookup').classList.add('hidden');
+      $('#view').classList.remove('hidden');
+      $('#vCode').textContent = b.code;
+      const badge = $('#vStatus');
+      badge.className = `badge ${b.status}`;
+      badge.textContent = statusLabel(b.status);
+      $('#vSummary').innerHTML = `
+        <dt>Day</dt><dd>${esc(prettyDate(b.date))}</dd>
+        <dt>Time</dt><dd>${esc(b.start)} – ${esc(b.end)}</dd>
+        <dt>Table</dt><dd>${esc(b.table.name)}</dd>
+        <dt>Name</dt><dd>${esc(b.name)}</dd>
+        <dt>Players</dt><dd>${b.players}</dd>
+        <dt>Price</dt><dd>${esc(money(b.price, b.currency))}</dd>`;
+
+      const area = $('#cancelArea');
+      if (b.canCancel) {
+        area.innerHTML = `<button class="btn danger block" id="cancelBtn" type="button">Cancel booking</button>
+          <p class="muted small" style="margin-top:8px">Online cancellation closes ${b.cancelCutoffMinutes} minutes before the start.</p>`;
+        $('#cancelBtn').onclick = cancel;
+      } else if (b.status === 'confirmed') {
+        area.innerHTML = `<p class="muted small">It's too close to the start time to cancel online. Please call the center.</p>`;
+      } else {
+        area.innerHTML = '';
+      }
+    }
+
+    function message(text, kind) {
+      const el = $('#viewMsg');
+      el.className = `alert ${kind}`;
+      el.textContent = text;
+      el.classList.toggle('hidden', !text);
+    }
+
+    async function cancel() {
+      if (!confirm('Cancel this booking? The table will be released to other players.')) return;
+      const btn = $('#cancelBtn');
+      btn.disabled = true;
+      try {
+        booking = await api(`/api/bookings/${encodeURIComponent(booking.code)}/cancel`, { method: 'POST', body: creds });
+        render();
+        message('Your booking was cancelled.', 'ok');
+      } catch (err) {
+        btn.disabled = false;
+        message(err.message, 'err');
+      }
+    }
+
+    async function load(code, c) {
+      const q = c.token ? `token=${encodeURIComponent(c.token)}` : `phone=${encodeURIComponent(c.phone)}`;
+      booking = await api(`/api/bookings/${encodeURIComponent(code)}?${q}`);
+      creds = c;
+      render();
+    }
+
+    $('#lookupForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const err = $('#lookupError');
+      err.classList.add('hidden');
+      $('#lookupBtn').disabled = true;
+      try {
+        await load($('#code').value.trim().toUpperCase(), { phone: $('#phone').value });
+      } catch (ex) {
+        err.textContent = ex.message;
+        err.classList.remove('hidden');
+      } finally {
+        $('#lookupBtn').disabled = false;
+      }
+    });
+
+    (async () => {
+      api('/api/config').then(c => { $('#centerName').textContent = c.centerName; }).catch(() => {});
+      const code = params.get('code');
+      const token = params.get('t');
+      if (code && token) {
+        try { await load(code, { token }); return; } catch { /* fall through to manual lookup */ }
+      }
+      if (code) $('#code').value = code;
+      $('#lookup').classList.remove('hidden');
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Front Desk</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .tabs { display: flex; gap: 6px; }
+    .tabs button { font: inherit; border: 1px solid var(--border); background: var(--card); color: var(--text); padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+    .tabs button.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+    .daynav { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+    .daynav input { width: auto; }
+    .daynav h2 { margin: 0 8px 0 0; font-size: 17px; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+    .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+    .stat .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat .k { font-size: 12px; color: var(--muted); }
+    .tl { display: grid; gap: 3px; grid-auto-rows: 26px; min-width: 100%; }
+    .tl .th { font-size: 12px; font-weight: 600; color: var(--muted); text-align: center; align-self: end; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tl .time { font-size: 11px; color: var(--muted); text-align: right; padding-right: 6px; font-variant-numeric: tabular-nums; }
+    .tl .slot { border: 1px dashed var(--border); border-radius: 6px; background: transparent; cursor: pointer; }
+    .tl .slot:hover { background: var(--accent-soft); border-color: var(--accent); }
+    .tl .bk { border-radius: 7px; padding: 3px 6px; font-size: 12px; line-height: 1.25; overflow: hidden; cursor: pointer; text-align: left; font-family: inherit;
+      border: 1px solid var(--accent); background: var(--accent-soft); color: var(--text); z-index: 1; }
+    .tl .bk.checked_in { border-color: var(--ok); background: var(--ok-soft); }
+    .tl .bk strong { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tl .blk { border-radius: 7px; padding: 3px 6px; font-size: 11px; color: var(--muted); z-index: 1; overflow: hidden;
+      background: repeating-linear-gradient(135deg, var(--cell-busy) 0 6px, transparent 6px 10px); border: 1px solid var(--border); }
+    .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .hours-row { display: grid; grid-template-columns: 52px 86px 1fr 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .hours-row input[type=checkbox], .inline input[type=checkbox] { width: auto; }
+    .inline { display: flex; gap: 10px; flex-wrap: wrap; }
+    .inline label { display: flex; align-items: center; gap: 5px; font-weight: 400; }
+    .dialog { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: grid; place-items: center; padding: 16px; z-index: 10; }
+    .dialog .card { width: 100%; max-width: 420px; margin: 0; }
+    @media (max-width: 760px) { .cols2 { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(2, 1fr); } }
+  </style>
+</head>
+<body>
+  <div class="container wide">
+    <header class="top">
+      <div class="logo" aria-hidden="true">🏓</div>
+      <div>
+        <h1>Front desk</h1>
+        <p id="centerName">Admin</p>
+      </div>
+      <div class="spacer"></div>
+      <nav class="tabs hidden" id="tabs">
+        <button type="button" data-tab="day" class="on">Day</button>
+        <button type="button" data-tab="settings">Settings</button>
+      </nav>
+    </header>
+
+    <!-- login -->
+    <div class="card hidden" id="login" style="max-width:380px;margin:40px auto">
+      <h2>Staff sign in</h2>
+      <div id="loginError" class="alert err hidden"></div>
+      <form id="loginForm">
+        <div class="field"><label for="pw">Admin password</label><input id="pw" type="password" autocomplete="current-password"></div>
+        <button class="btn block" type="submit">Sign in</button>
+      </form>
+    </div>
+
+    <!-- day -->
+    <section id="tab-day" class="hidden">
+      <div class="daynav">
+        <h2 id="dayTitle"></h2>
+        <button class="btn sm ghost" type="button" id="prevDay" aria-label="Previous day">‹</button>
+        <input type="date" id="dayPick">
+        <button class="btn sm ghost" type="button" id="nextDay" aria-label="Next day">›</button>
+        <button class="btn sm ghost" type="button" id="todayBtn">Today</button>
+        <button class="btn sm ghost" type="button" id="refresh">Refresh</button>
+      </div>
+      <div id="dayError" class="alert err hidden"></div>
+      <div class="stats" id="stats"></div>
+
+      <div class="card">
+        <h2>Timeline <span class="muted small" style="font-weight:400">· tap an empty slot for a walk-in, tap a booking for actions</span></h2>
+        <div id="closedMsg" class="muted hidden">Closed on this day.</div>
+        <div class="grid-wrap"><div class="tl" id="timeline"></div></div>
+      </div>
+
+      <div class="cols2">
+        <div class="card">
+          <h2>Walk-in / phone booking</h2>
+          <div id="walkMsg" class="alert hidden"></div>
+          <form id="walkForm" novalidate>
+            <div class="row3">
+              <div class="field"><label for="wTable">Table</label><select id="wTable"></select></div>
+              <div class="field"><label for="wStart">Start</label><input id="wStart" type="time" step="900"></div>
+              <div class="field"><label for="wDur">Minutes</label><input id="wDur" type="number" min="15" step="15" value="60"></div>
+            </div>
+            <div class="row3">
+              <div class="field"><label for="wName">Name</label><input id="wName"></div>
+              <div class="field"><label for="wPhone">Phone (optional)</label><input id="wPhone" type="tel"></div>
+              <div class="field"><label for="wPlayers">Players</label><input id="wPlayers" type="number" min="1" value="2"></div>
+            </div>
+            <button class="btn" type="submit">Add booking</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <h2>Block time</h2>
+          <div id="blockMsg" class="alert hidden"></div>
+          <form id="blockForm" novalidate>
+            <div class="row3">
+              <div class="field"><label for="bTable">Table</label><select id="bTable"></select></div>
+              <div class="field"><label for="bStart">From</label><input id="bStart" type="time" step="900"></div>
+              <div class="field"><label for="bEnd">To</label><input id="bEnd" type="time" step="900"></div>
+            </div>
+            <div class="field"><label for="bReason">Reason</label><input id="bReason" placeholder="Maintenance, tournament, private event…"></div>
+            <button class="btn" type="submit">Block</button>
+          </form>
+          <ul class="list" id="blockList" style="margin-top:10px"></ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>All bookings this day</h2>
+        <ul class="list" id="bookingList"></ul>
+      </div>
+    </section>
+
+    <!-- settings -->
+    <section id="tab-settings" class="hidden">
+      <div class="cols2">
+        <div>
+          <div class="card">
+            <h2>Center</h2>
+            <div class="field"><label for="sName">Name</label><input id="sName"></div>
+            <div class="row">
+              <div class="field"><label for="sTz">Time zone</label><input id="sTz"></div>
+              <div class="field"><label for="sCur">Currency</label><input id="sCur" maxlength="3"></div>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Opening hours</h2>
+            <div id="hoursRows"></div>
+          </div>
+          <div class="card">
+            <h2>Tables</h2>
+            <div id="tableMsg" class="alert hidden"></div>
+            <ul class="list" id="tableList"></ul>
+            <form id="addTableForm" class="copy-line" style="margin-top:10px">
+              <input id="newTable" placeholder="New table name">
+              <button class="btn" type="submit">Add</button>
+            </form>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <h2>Prices (per hour)</h2>
+            <div class="row">
+              <div class="field"><label for="pOff">Off-peak</label><input id="pOff" type="number" min="0" step="1"></div>
+              <div class="field"><label for="pPeak">Peak</label><input id="pPeak" type="number" min="0" step="1"></div>
+            </div>
+            <div class="field"><label for="pStart">Peak starts at (every day)</label><input id="pStart" type="time" step="900"></div>
+            <label>Peak all day on</label>
+            <div class="inline" id="peakDays"></div>
+          </div>
+          <div class="card">
+            <h2>Booking rules</h2>
+            <div class="row">
+              <div class="field"><label for="rSlot">Slot size (min)</label>
+                <select id="rSlot"><option>15</option><option>30</option><option>60</option></select></div>
+              <div class="field"><label for="rDur">Durations (min, comma separated)</label><input id="rDur"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label for="rAdv">Book up to (days ahead)</label><input id="rAdv" type="number" min="0"></div>
+              <div class="field"><label for="rNotice">Min notice (min)</label><input id="rNotice" type="number" min="0"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label for="rCancel">Online cancel until (min before)</label><input id="rCancel" type="number" min="0"></div>
+              <div class="field"><label for="rPhone">Max upcoming per phone</label><input id="rPhone" type="number" min="1"></div>
+            </div>
+            <div class="field"><label for="rPlayers">Max players per table</label><input id="rPlayers" type="number" min="1" max="8"></div>
+          </div>
+          <div id="settingsMsg" class="alert hidden"></div>
+          <button class="btn block" type="button" id="saveSettings">Save settings</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="dialog hidden" id="dialog">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h2 style="margin:0" id="dTitle"></h2>
+        <span class="badge" id="dStatus"></span>
+      </div>
+      <div id="dMsg" class="alert err hidden"></div>
+      <dl class="summary" id="dSummary"></dl>
+      <div class="btn-row" id="dActions"></div>
+    </div>
+  </div>
+
+  <script src="/common.js"></script>
+  <script>
+    const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    let password = null;
+    let config = null;
+    let day = null;
+    let date = null;
+    let current = null; // booking open in the dialog
+
+    const session = {
+      get() { try { return sessionStorage.getItem('pp.admin'); } catch { return null; } },
+      set(v) { try { v ? sessionStorage.setItem('pp.admin', v) : sessionStorage.removeItem('pp.admin'); } catch { /* ignore */ } },
+    };
+    const adminApi = (path, opts = {}) => api(`/api/admin${path}`, { ...opts, token: password }).catch(err => {
+      if (err.status === 401) { session.set(null); showLogin('Session expired, please sign in again.'); }
+      throw err;
+    });
+
+    function flash(sel, text, kind = 'err') {
+      const el = $(sel);
+      el.className = `alert ${kind}`;
+      el.textContent = text;
+      el.classList.toggle('hidden', !text);
+    }
+
+    // ---------- auth ----------
+
+    function showLogin(error) {
+      $('#login').classList.remove('hidden');
+      $('#tabs').classList.add('hidden');
+      $('#tab-day').classList.add('hidden');
+      $('#tab-settings').classList.add('hidden');
+      if (error) flash('#loginError', error);
+    }
+
+    $('#loginForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      password = $('#pw').value;
+      try {
+        await start();
+        session.set(password);
+      } catch (err) {
+        flash('#loginError', err.message);
+      }
+    });
+
+    async function start() {
+      config = await api('/api/config');
+      date = date || config.today;
+      await loadDay();
+      $('#centerName').textContent = config.centerName;
+      $('#login').classList.add('hidden');
+      $('#tabs').classList.remove('hidden');
+      showTab('day');
+    }
+
+    function showTab(name) {
+      document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+      $('#tab-day').classList.toggle('hidden', name !== 'day');
+      $('#tab-settings').classList.toggle('hidden', name !== 'settings');
+      if (name === 'settings') loadSettings();
+    }
+    document.querySelectorAll('#tabs button').forEach(b => { b.onclick = () => showTab(b.dataset.tab); });
+
+    // ---------- day ----------
+
+    async function loadDay() {
+      day = await adminApi(`/day?date=${date}`);
+      renderDay();
+    }
+
+    async function reloadDay() {
+      try { await loadDay(); flash('#dayError', ''); } catch (err) { flash('#dayError', err.message); }
+    }
+
+    function renderDay() {
+      $('#dayTitle').textContent = prettyDate(date, { weekday: 'long', day: 'numeric', month: 'short' });
+      $('#dayPick').value = date;
+
+      const active = day.bookings.filter(b => b.status === 'confirmed' || b.status === 'checked_in');
+      const revenue = day.bookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + b.price, 0);
+      $('#stats').innerHTML = [
+        ['Bookings', active.length],
+        ['Checked in', day.bookings.filter(b => b.status === 'checked_in').length],
+        ['No-shows', day.bookings.filter(b => b.status === 'no_show').length],
+        ['Expected', money(revenue, config.currency)],
+      ].map(([k, v]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${k}</div></div>`).join('');
+
+      const tableOpts = day.tables.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+      const keep = [$('#wTable').value, $('#bTable').value];
+      $('#wTable').innerHTML = tableOpts;
+      $('#bTable').innerHTML = '<option value="">All tables</option>' + tableOpts;
+      if (keep[0]) $('#wTable').value = keep[0];
+      if (keep[1] !== undefined) $('#bTable').value = keep[1];
+
+      renderTimeline(active);
+
+      $('#blockList').innerHTML = day.blocks.map(b => `<li>
+        <div class="grow"><strong>${esc(b.start)}–${esc(b.end)}</strong> · ${esc(b.tableId ? tableName(b.tableId) : 'All tables')}
+        ${b.reason ? `<div class="muted small">${esc(b.reason)}</div>` : ''}</div>
+        <button class="btn sm ghost" type="button" data-unblock="${b.id}">Remove</button></li>`).join('')
+        || '<li class="muted small">No blocked time.</li>';
+
+      $('#bookingList').innerHTML = day.bookings.map(b => `<li>
+        <div class="grow"><strong>${esc(b.start)}–${esc(b.end)}</strong> · ${esc(b.table.name)} · ${esc(b.name)}
+          <div class="muted small">${esc(b.code)} · ${b.players} players${b.phone ? ` · <a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>` : ''} · ${esc(money(b.price, b.currency))} · ${b.source}</div></div>
+        <span class="badge ${b.status}">${statusLabel(b.status)}</span>
+        <button class="btn sm ghost" type="button" data-open="${esc(b.code)}">Open</button></li>`).join('')
+        || '<li class="muted small">No bookings yet.</li>';
+    }
+
+    function tableName(id) {
+      const t = day.tables.find(x => x.id === id);
+      return t ? t.name : `Table #${id}`;
+    }
+
+    function renderTimeline(active) {
+      const tl = $('#timeline');
+      const hours = day.hours;
+      $('#closedMsg').classList.toggle('hidden', !!hours);
+      if (!hours) { tl.innerHTML = ''; return; }
+      const open = toMin(hours.open);
+      const close = toMin(hours.close);
+      const slot = day.slotMinutes;
+      const rows = (close - open) / slot;
+      tl.style.gridTemplateColumns = `52px repeat(${day.tables.length}, minmax(90px, 1fr))`;
+      const col = id => day.tables.findIndex(t => t.id === id) + 2;
+      const rowOf = m => Math.floor((m - open) / slot) + 2;
+
+      let html = '<div></div>' + day.tables.map(t => `<div class="th">${esc(t.name)}</div>`).join('');
+      for (let r = 0; r < rows; r++) {
+        const m = open + r * slot;
+        html += `<div class="time" style="grid-row:${r + 2};grid-column:1">${m % 60 === 0 || slot === 60 ? toHHMM(m) : ''}</div>`;
+        day.tables.forEach((t, i) => {
+          html += `<button type="button" class="slot" style="grid-row:${r + 2};grid-column:${i + 2}" data-t="${t.id}" data-s="${m}" aria-label="${esc(t.name)} ${toHHMM(m)}"></button>`;
+        });
+      }
+      const clamp = (s, e) => [Math.max(s, open), Math.min(e, close)];
+      for (const b of day.blocks) {
+        const [s, e] = clamp(toMin(b.start), toMin(b.end));
+        if (s >= e) continue;
+        const cols = b.tableId ? `${col(b.tableId)} / span 1` : `2 / span ${day.tables.length}`;
+        if (b.tableId && col(b.tableId) < 2) continue;
+        html += `<div class="blk" style="grid-row:${rowOf(s)} / ${rowOf(e - 1) + 1};grid-column:${cols}">⛔ ${esc(b.reason || 'Blocked')}</div>`;
+      }
+      for (const b of active) {
+        const [s, e] = clamp(toMin(b.start), toMin(b.end));
+        if (s >= e || col(b.table.id) < 2) continue;
+        html += `<button type="button" class="bk ${b.status}" data-open="${esc(b.code)}" style="grid-row:${rowOf(s)} / ${rowOf(e - 1) + 1};grid-column:${col(b.table.id)}">
+          <strong>${b.status === 'checked_in' ? '✓ ' : ''}${esc(b.name)}</strong><span class="muted">${esc(b.start)}–${esc(b.end)} · ${b.players}p</span></button>`;
+      }
+      tl.innerHTML = html;
+    }
+
+    document.addEventListener('click', e => {
+      const open = e.target.closest('[data-open]');
+      if (open) return openBooking(open.dataset.open);
+      const slot = e.target.closest('.tl .slot');
+      if (slot) {
+        $('#wTable').value = slot.dataset.t;
+        $('#wStart').value = toHHMM(Number(slot.dataset.s));
+        $('#wName').focus();
+        $('#walkForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      const unblock = e.target.closest('[data-unblock]');
+      if (unblock) removeBlock(unblock.dataset.unblock);
+    });
+
+    function setDate(d) { date = d; reloadDay(); }
+    $('#prevDay').onclick = () => setDate(addDays(date, -1));
+    $('#nextDay').onclick = () => setDate(addDays(date, 1));
+    $('#todayBtn').onclick = () => setDate(config.today);
+    $('#refresh').onclick = reloadDay;
+    $('#dayPick').onchange = e => { if (e.target.value) setDate(e.target.value); };
+
+    $('#walkForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      try {
+        const res = await adminApi('/bookings', {
+          method: 'POST',
+          body: {
+            tableId: Number($('#wTable').value), date, start: $('#wStart').value, duration: Number($('#wDur').value),
+            name: $('#wName').value, phone: $('#wPhone').value || null, players: Number($('#wPlayers').value),
+          },
+        });
+        flash('#walkMsg', `Booked ${res.booking.table.name} ${res.booking.start}–${res.booking.end} for ${res.booking.name} (${res.booking.code})`, 'ok');
+        $('#wName').value = ''; $('#wPhone').value = '';
+        await reloadDay();
+      } catch (err) { flash('#walkMsg', err.message); }
+    });
+
+    $('#blockForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      try {
+        const res = await adminApi('/blocks', {
+          method: 'POST',
+          body: { tableId: $('#bTable').value || null, date, start: $('#bStart').value, end: $('#bEnd').value, reason: $('#bReason').value },
+        });
+        if (res.conflicts.length) {
+          flash('#blockMsg', `Blocked, but ${res.conflicts.length} booking(s) overlap: ` +
+            res.conflicts.map(c => `${c.name} (${c.table} ${c.start})`).join(', ') + '. Contact them or cancel.', 'warn');
+        } else {
+          flash('#blockMsg', 'Time blocked.', 'ok');
+        }
+        $('#bReason').value = '';
+        await reloadDay();
+      } catch (err) { flash('#blockMsg', err.message); }
+    });
+
+    async function removeBlock(id) {
+      if (!confirm('Remove this block?')) return;
+      try { await adminApi(`/blocks/${id}`, { method: 'DELETE' }); await reloadDay(); }
+      catch (err) { flash('#blockMsg', err.message); }
+    }
+
+    // ---------- booking dialog ----------
+
+    function openBooking(code) {
+      current = day.bookings.find(b => b.code === code);
+      if (!current) return;
+      const b = current;
+      $('#dTitle').textContent = b.name;
+      $('#dStatus').className = `badge ${b.status}`;
+      $('#dStatus').textContent = statusLabel(b.status);
+      $('#dMsg').classList.add('hidden');
+      $('#dSummary').innerHTML = `
+        <dt>Code</dt><dd>${esc(b.code)}</dd>
+        <dt>Time</dt><dd>${esc(b.start)} – ${esc(b.end)}</dd>
+        <dt>Table</dt><dd>${esc(b.table.name)}</dd>
+        <dt>Players</dt><dd>${b.players}</dd>
+        <dt>Phone</dt><dd>${b.phone ? `<a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>` : '—'}</dd>
+        <dt>Price</dt><dd>${esc(money(b.price, b.currency))}</dd>
+        <dt>Source</dt><dd>${b.source === 'desk' ? 'Front desk' : 'Online'}</dd>`;
+      const actions = {
+        confirmed: [['checked_in', 'Check in', ''], ['no_show', 'No-show', 'ghost'], ['cancelled', 'Cancel booking', 'danger']],
+        checked_in: [['confirmed', 'Undo check-in', 'ghost'], ['cancelled', 'Cancel booking', 'danger']],
+        no_show: [['confirmed', 'Restore', 'ghost']],
+        cancelled: [['confirmed', 'Restore', 'ghost']],
+      }[b.status];
+      $('#dActions').innerHTML = actions.map(([s, label, cls]) => `<button type="button" class="btn ${cls}" data-status="${s}">${label}</button>`).join('')
+        + '<button type="button" class="btn ghost" id="dClose">Close</button>';
+      $('#dialog').classList.remove('hidden');
+    }
+
+    $('#dialog').addEventListener('click', async e => {
+      if (e.target.id === 'dialog' || e.target.id === 'dClose') return $('#dialog').classList.add('hidden');
+      const btn = e.target.closest('[data-status]');
+      if (!btn) return;
+      if (btn.dataset.status === 'cancelled' && !confirm(`Cancel ${current.name}'s booking?`)) return;
+      btn.disabled = true;
+      try {
+        await adminApi(`/bookings/${current.code}`, { method: 'PATCH', body: { status: btn.dataset.status } });
+        $('#dialog').classList.add('hidden');
+        await reloadDay();
+      } catch (err) {
+        btn.disabled = false;
+        flash('#dMsg', err.message);
+      }
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#dialog').classList.add('hidden'); });
+
+    // ---------- settings ----------
+
+    async function loadSettings() {
+      try {
+        const [s, tables] = await Promise.all([adminApi('/settings'), adminApi('/tables')]);
+        fillSettings(s);
+        renderTables(tables);
+        flash('#settingsMsg', '');
+      } catch (err) { flash('#settingsMsg', err.message); }
+    }
+
+    function fillSettings(s) {
+      $('#sName').value = s.centerName;
+      $('#sTz').value = s.timezone;
+      $('#sCur').value = s.currency;
+      $('#hoursRows').innerHTML = s.hours.map((h, i) => `<div class="hours-row">
+          <strong>${WEEKDAYS[i]}</strong>
+          <label class="inline" style="margin:0"><input type="checkbox" data-open-day="${i}" ${h ? 'checked' : ''}> Open</label>
+          <input type="time" step="900" data-h-open="${i}" value="${h ? h.open : '10:00'}">
+          <input type="time" step="900" data-h-close="${i}" value="${h ? (h.close === '24:00' ? '23:59' : h.close) : '22:00'}">
+        </div>`).join('');
+      $('#pOff').value = s.pricing.offPeakPerHour;
+      $('#pPeak').value = s.pricing.peakPerHour;
+      $('#pStart').value = s.pricing.peakStart || '';
+      $('#peakDays').innerHTML = WEEKDAYS.map((d, i) =>
+        `<label><input type="checkbox" data-peak="${i}" ${s.pricing.peakDays.includes(i) ? 'checked' : ''}> ${d}</label>`).join('');
+      $('#rSlot').value = String(s.slotMinutes);
+      $('#rDur').value = s.durations.join(', ');
+      $('#rAdv').value = s.maxAdvanceDays;
+      $('#rNotice').value = s.minNoticeMinutes;
+      $('#rCancel').value = s.cancelCutoffMinutes;
+      $('#rPhone').value = s.maxActiveBookingsPerPhone;
+      $('#rPlayers').value = s.maxPlayersPerTable;
+    }
+
+    $('#saveSettings').onclick = async () => {
+      const closeVal = v => (v === '23:59' ? '24:00' : v);
+      const body = {
+        centerName: $('#sName').value,
+        timezone: $('#sTz').value.trim(),
+        currency: $('#sCur').value.trim().toUpperCase(),
+        hours: WEEKDAYS.map((_, i) => document.querySelector(`[data-open-day="${i}"]`).checked
+          ? { open: document.querySelector(`[data-h-open="${i}"]`).value, close: closeVal(document.querySelector(`[data-h-close="${i}"]`).value) }
+          : null),
+        pricing: {
+          offPeakPerHour: Number($('#pOff').value),
+          peakPerHour: Number($('#pPeak').value),
+          peakStart: $('#pStart').value || null,
+          peakDays: WEEKDAYS.map((_, i) => i).filter(i => document.querySelector(`[data-peak="${i}"]`).checked),
+        },
+        slotMinutes: Number($('#rSlot').value),
+        durations: $('#rDur').value.split(',').map(x => Number(x.trim())).filter(Boolean),
+        maxAdvanceDays: Number($('#rAdv').value),
+        minNoticeMinutes: Number($('#rNotice').value),
+        cancelCutoffMinutes: Number($('#rCancel').value),
+        maxActiveBookingsPerPhone: Number($('#rPhone').value),
+        maxPlayersPerTable: Number($('#rPlayers').value),
+      };
+      try {
+        const saved = await adminApi('/settings', { method: 'PUT', body });
+        fillSettings(saved);
+        config = await api('/api/config');
+        $('#centerName').textContent = config.centerName;
+        flash('#settingsMsg', 'Settings saved.', 'ok');
+        loadDay().catch(() => {});
+      } catch (err) { flash('#settingsMsg', err.message); }
+    };
+
+    function renderTables(tables) {
+      $('#tableList').innerHTML = tables.map(t => `<li>
+        <input value="${esc(t.name)}" data-tname="${t.id}" style="flex:1">
+        <label class="inline" style="margin:0;white-space:nowrap"><input type="checkbox" data-tactive="${t.id}" ${t.active ? 'checked' : ''}> In service</label>
+        <button class="btn sm ghost" type="button" data-tsave="${t.id}">Save</button></li>`).join('');
+    }
+
+    $('#tableList').addEventListener('click', async e => {
+      const btn = e.target.closest('[data-tsave]');
+      if (!btn) return;
+      const id = btn.dataset.tsave;
+      try {
+        await adminApi(`/tables/${id}`, { method: 'PATCH', body: {
+          name: document.querySelector(`[data-tname="${id}"]`).value,
+          active: document.querySelector(`[data-tactive="${id}"]`).checked,
+        } });
+        flash('#tableMsg', 'Table saved.', 'ok');
+        renderTables(await adminApi('/tables'));
+        loadDay().catch(() => {});
+      } catch (err) { flash('#tableMsg', err.message); renderTables(await adminApi('/tables')); }
+    });
+
+    $('#addTableForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      try {
+        await adminApi('/tables', { method: 'POST', body: { name: $('#newTable').value } });
+        $('#newTable').value = '';
+        flash('#tableMsg', 'Table added.', 'ok');
+        renderTables(await adminApi('/tables'));
+        loadDay().catch(() => {});
+      } catch (err) { flash('#tableMsg', err.message); }
+    });
+
+    // ---------- boot ----------
+
+    (async () => {
+      password = session.get();
+      if (!password) return showLogin();
+      try { await start(); } catch (err) { session.set(null); showLogin(err.status === 401 ? '' : err.message); }
+    })();
+    setInterval(() => { if (password && !$('#tab-day').classList.contains('hidden') && $('#dialog').classList.contains('hidden')) reloadDay(); }, 60000);
+  </script>
+</body>
+</html>
