@@ -116,6 +116,7 @@ function createApp({ dbFile = ':memory:', adminPassword = null, baseUrl = null, 
   const pub = path.join(__dirname, '..', 'public');
   app.get('/manage', (req, res) => res.sendFile(path.join(pub, 'manage.html')));
   app.get('/admin', (req, res) => res.sendFile(path.join(pub, 'admin.html')));
+  app.get('/styleguide', (req, res) => res.sendFile(path.join(pub, 'styleguide.html')));
   app.use(express.static(pub));
 
   app.use('/api', (req, res) => {

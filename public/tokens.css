@@ -1,121 +1,194 @@
 /*
- * Design tokens: the only place colours, type, spacing, radii and shadows are defined.
+ * Rally Club design tokens: the only place colours, type, spacing, radii and shadows are defined.
+ * Values come from docs/BUILD_SPEC.md §1 and the screens in docs/design/screens/.
  * Every other stylesheet and template uses these variables, never raw values.
  *
- * Palette: navy + white, three greys, one orange accent (the ball).
- * Contrast (WCAG AA, checked): text on --surface and on --bg is >= 4.5:1;
- * --accent is never used for text; orange text uses --accent-ink.
+ * Contrast (WCAG AA, checked in test/design-tokens.test.js): every text pair is >= 4.5:1.
+ * --accent (orange) is a fill only, never text on white; orange text uses --accent-text.
  */
 
 @font-face {
-  font-family: "Inter";
-  src: url("fonts/inter-latin-var.woff2") format("woff2");
-  font-weight: 100 900;
+  font-family: "Plus Jakarta Sans";
+  src: url("fonts/plus-jakarta-sans-latin-var.woff2") format("woff2");
+  font-weight: 200 800;
   font-style: normal;
   font-display: swap;
 }
 
 :root {
-  /* ---- raw palette ---- */
-  --navy-950: #071528;   /* pressed */
-  --navy-900: #0B1F3A;   /* primary navy */
-  --navy-700: #1E3A8A;   /* hover / active */
-  --navy-100: #DCE4F2;   /* selected tint border */
-  --navy-50:  #EEF2F9;   /* selected tint fill */
+  /* ================= palette (spec §1) ================= */
+  --navy-900: #0B1F3A;   /* primary: buttons, headers, selected, hero cards */
+  --navy-700: #13305C;   /* hover on navy */
+  --navy-500: #1E3A8A;   /* focus rings, links on hover */
   --white:    #FFFFFF;
-  --gray-50:  #F4F6FA;   /* page ground */
-  --gray-100: #EBEFF5;   /* sunken / taken */
-  --gray-200: #E2E8F0;   /* borders */
-  --gray-300: #CBD5E1;   /* control borders */
-  --gray-500: #5B6B80;   /* secondary text (5.4:1 on white, 5.0:1 on gray-50) */
-  --gray-700: #334155;   /* strong secondary text */
-  --orange-500: #F97316; /* the ball: marks and fills only, never text */
-  --orange-700: #C2410C; /* orange text (5.2:1 on white) */
-  --orange-50:  #FFF4EC;
-  --green-700: #15803D;  --green-50: #E9F8EE;
-  --red-700:   #B91C1C;  --red-50:   #FDECEC;
+  --bg-app:   #F4F6FA;   /* app background */
+  --surface-2: #EEF2F8;  /* subtle fills: icon tiles, selected rows, date blocks */
+  --track:    #E6EBF2;   /* segmented control track */
+  --line:     #E2E8F0;   /* card and input borders */
+  --line-soft: #EEF2F7;  /* divider inside a card */
+  --ink:      #0B1F3A;   /* primary text */
+  --ink-2:    #3B4A60;   /* unselected segment label */
+  --muted:    #5B6B82;   /* secondary text (5.4:1 on white) */
+  --placeholder: #8A97AB;
+  --on-navy-muted: #C7D2E3;   /* secondary text on navy */
+  --on-navy-soft:  #DCE3EE;   /* benefit list on navy */
+  --on-navy-line:  rgba(255, 255, 255, 0.35);  /* outline-on-navy border */
+  --on-navy-fill:  rgba(255, 255, 255, 0.12);  /* pill on navy */
+  --table-line:    rgba(255, 255, 255, 0.10);  /* the "table line" across navy cards */
+  --orange:   #F97316;   /* the ball: fills only */
+  --orange-text: #C2410C;  /* orange text on white */
+  --orange-200: #FED7AA;
+  --orange-100: #FFEDD5;   /* lesson badge, avatar tint */
+  --orange-50:  #FFF7ED;   /* callout */
+  --orange-ink: #9A3412;   /* text on orange-100 */
+  --orange-ink-strong: #7C2D12;
+  --peach:    #FDBA74;   /* small uppercase label on navy */
+  --navy-tint: #E0E7F5;  /* table badge */
+  --slot-full-bg: #EDF1F6;
+  --slot-full-line: #C9D2DF;
+  --slot-full-ink: #6B7A90;
+  --legend-full: #D5DCE7;
+  --radio-line: #B8C2D3;
+  --dash-line:  #9AA8BC;
+  --green:    #15803D;
+  --green-50: #E9F8EE;
+  --red:      #B91C1C;
+  --red-200:  #FECACA;
+  --red-50:   #FDECEC;
   --amber-800: #92400E;  --amber-50: #FFFBEB;  --amber-200: #FDE68A;
 
-  /* ---- roles ---- */
-  --bg: var(--gray-50);
+  /* ================= roles ================= */
+  --bg: var(--bg-app);
   --surface: var(--white);
-  --surface-sunken: var(--gray-100);
-  --border: var(--gray-200);
-  --border-strong: var(--gray-300);
-  --text: var(--navy-900);
-  --text-muted: var(--gray-500);
-  --text-strong-muted: var(--gray-700);
+  --surface-sunken: var(--surface-2);
+  --border: var(--line);
+  --border-strong: var(--line);
+  --text: var(--ink);
+  --text-muted: var(--muted);
+  --text-strong-muted: var(--ink-2);
+  --text-on-navy-muted: var(--on-navy-muted);
   --on-primary: var(--white);
 
   --primary: var(--navy-900);
   --primary-hover: var(--navy-700);
-  --primary-active: var(--navy-950);
-  --selected-bg: var(--navy-50);
-  --selected-border: var(--navy-100);
+  --primary-active: var(--navy-900);
+  --selected-bg: var(--surface-2);
+  --selected-border: var(--navy-tint);
 
-  --accent: var(--orange-500);
-  --accent-ink: var(--orange-700);
-  --accent-soft: var(--orange-50);
+  --accent: var(--orange);
+  --accent-text: var(--orange-text);
+  --accent-ink: var(--orange-text);      /* legacy name */
+  --accent-soft: var(--orange-100);
+  --accent-softer: var(--orange-50);
 
-  --success: var(--green-700);  --success-bg: var(--green-50);
-  --danger: var(--red-700);     --danger-bg: var(--red-50);
+  --success: var(--green);  --success-bg: var(--green-50);
+  --danger: var(--red);     --danger-bg: var(--red-50);   --danger-border: var(--red-200);
   --warning: var(--amber-800);  --warning-bg: var(--amber-50);  --warning-border: var(--amber-200);
 
-  --focus-outline: 2px solid var(--navy-700);
+  --focus-ring: 0 0 0 4px rgba(30, 58, 138, 0.25);        /* buttons and controls */
+  --focus-ring-input: 0 0 0 4px rgba(30, 58, 138, 0.12);  /* inputs, with a 2px --navy-500 border */
+  --focus-ring-danger: 0 0 0 4px rgba(185, 28, 28, 0.12); /* input in error, focused */
+  --focus-outline: 2px solid var(--navy-500);             /* legacy pages */
   --focus-offset: 2px;
-  --scrim: rgba(7, 21, 40, 0.48);
+  --scrim: rgba(11, 31, 58, 0.48);
 
-  /* ---- type ---- */
-  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --text-xs: 12px;    /* captions, meta */
-  --text-sm: 14px;    /* secondary, table cells */
-  --text-md: 16px;    /* body, inputs (16px stops iOS zoom) */
-  --text-lg: 20px;    /* section headings */
-  --text-xl: 24px;    /* page titles */
-  --text-2xl: 32px;   /* big figures: times, KPIs */
-  --text-3xl: 40px;   /* the booking code */
+  /* ================= type (spec §1) ================= */
+  --font: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --fs-display: 40px;   /* 800 */
+  --fs-h1: 28px;        /* 800 */
+  --fs-title: 26px;     /* tab screen titles (My bookings, Lessons) */
+  --fs-h2: 22px;        /* 800 */
+  --fs-section: 17px;   /* 800 */
+  --fs-lg: 16px;        /* large buttons, card titles */
+  --fs-body: 15px;      /* 500 */
+  --fs-label: 14px;     /* buttons, chips, slots */
+  --fs-small: 13px;     /* 500 */
+  --fs-caption: 12px;   /* 600 */
+  --fs-micro: 11px;     /* 600 */
+  --fs-num-sm: 18px;    /* date tile, date block */
+  --fs-num-md: 20px;
+  --fs-num-lg: 24px;    /* credit counters, greeting */
+  --fs-num-xl: 30px;    /* hero time */
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
   --weight-bold: 700;
-  --leading-tight: 1.15;
+  --weight-heavy: 800;
+  --leading-tight: 1.08;
+  --leading-snug: 1.2;
   --leading-normal: 1.5;
+  --leading-copy: 1.45;
   --tracking-tight: -0.02em;
+  --tracking-display: -0.03em;
+  --tracking-label: 0.1em;    /* small uppercase labels: "Next up · Tomorrow" */
+  --tracking-badge: 0.06em;   /* "Most popular" */
   --tracking-code: 0.08em;
 
-  /* ---- spacing (4px base) ---- */
+  /* legacy type scale, still used by the pages not yet rebuilt */
+  --text-xs: 12px;  --text-sm: 14px;  --text-md: 16px;  --text-lg: 20px;
+  --text-xl: 24px;  --text-2xl: 32px; --text-3xl: 40px;
+
+  /* ================= spacing (spec: 4 8 12 16 20 24 32 48) ================= */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 48px;
+  --space-screen: 20px;   /* screen side padding */
+  --space-10: 10px;       /* the screens' 10px and 14px gaps */
+  --space-14: 14px;
 
-  /* ---- shape ---- */
-  --radius-sm: 4px;   /* tags, grid cells */
-  --radius-md: 8px;   /* buttons, inputs, choices */
-  --radius-lg: 12px;  /* cards, dialogs */
+  /* ================= shape ================= */
+  --radius-xs: 4px;       /* progress bars, tags */
+  --radius-sm: 10px;      /* segment, small icon tile */
+  --radius-md: 12px;      /* inputs, small buttons, slots */
+  --radius-tile: 14px;    /* date tiles, segmented track, area cards */
+  --radius-btn-lg: 16px;  /* 56px buttons, stat cards */
+  --radius-lg: 18px;      /* cards */
+  --radius-hero: 22px;    /* hero cards */
+  --radius-ticket: 24px;  /* ticket */
   --radius-full: 999px;
   --border-width: 1px;
+  --border-control: 1.5px;
+  --border-selected: 2px;
 
-  /* ---- elevation ---- */
-  --shadow-sm: 0 1px 2px rgba(11, 31, 58, 0.05);                 /* resting cards */
-  --shadow-md: 0 4px 12px rgba(11, 31, 58, 0.08);                /* hovered / sticky */
-  --shadow-lg: 0 16px 40px rgba(11, 31, 58, 0.18);               /* dialogs */
+  /* ================= depth (spec §1) ================= */
+  --shadow-button: 0 8px 20px rgba(11, 31, 58, 0.25);
+  --shadow-hero: 0 14px 30px rgba(11, 31, 58, 0.25);
+  --shadow-bar: 0 -8px 24px rgba(11, 31, 58, 0.06);
+  --shadow-raised: 0 2px 6px rgba(11, 31, 58, 0.12);      /* selected segment */
+  --shadow-tile: 0 6px 14px rgba(11, 31, 58, 0.25);       /* selected date tile */
+  --shadow-inverse: 0 10px 30px rgba(0, 0, 0, 0.25);      /* white button on navy */
+  --shadow-ball: 0 8px 24px rgba(249, 115, 22, 0.45);
+  --shadow-accent: 0 8px 20px rgba(249, 115, 22, 0.35);   /* accent button */
+  --shadow-knob: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-float: 0 16px 40px rgba(11, 31, 58, 0.18);     /* toast, dialog */
+  --shadow-sm: none;                                      /* legacy cards */
+  --shadow-md: 0 4px 12px rgba(11, 31, 58, 0.08);
+  --shadow-lg: var(--shadow-float);
 
-  /* ---- sizes ---- */
-  --control-sm: 32px;
-  --control-md: 40px;
-  --control-lg: 48px;
+  /* ================= sizes ================= */
+  --size-sm: 40px;   /* buttons */
+  --size-md: 48px;
+  --size-lg: 56px;
+  --size-input: 50px;
+  --size-slot: 44px;
+  --size-chip: 36px;
+  --size-icon-btn: 44px;
+  --size-date-tile: 64px;
   --tap-min: 44px;
+  --control-sm: 32px;  --control-md: 40px;  --control-lg: 48px;   /* legacy */
   --content-max: 1200px;
+  --phone-max: 430px;
   --header-height: 60px;
-  --timeline-row: 28px;  /* one slot on the front-desk timeline */
+  --timeline-row: 28px;
 
-  /* ---- motion ---- */
+  /* ================= motion ================= */
   --ease: cubic-bezier(0.2, 0, 0, 1);
-  --duration: 160ms;
+  --duration: 150ms;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Rally Club Styleguide</title>
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+  <style>
+    /* Layout for this page only; all values are tokens. */
+    body { margin: 0; }
+    .sg { max-width: 1120px; margin: 0 auto; padding: var(--space-7) var(--space-screen) var(--space-8); }
+    .sg-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-7); }
+    .sg-nav { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .sg-section { margin-top: var(--space-8); scroll-margin-top: var(--space-6); }
+    .sg-section > .ui-h2 { margin-bottom: var(--space-1); }
+    .sg-section > .sg-lede { margin-bottom: var(--space-5); color: var(--text-muted); font-size: var(--fs-small); max-width: 640px; }
+    .sg-panel { background: var(--white); border: var(--border-width) solid var(--line); border-radius: var(--radius-lg); padding: var(--space-6); }
+    .sg-panel--navy { background: var(--ink); border-color: var(--ink); color: var(--white); }
+    .sg-panel--app { background: var(--bg); }
+    .sg-grid { display: grid; gap: var(--space-6); }
+    .sg-grid--2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .sg-grid--3 { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+    .sg-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+    .sg-stack { display: flex; flex-direction: column; gap: var(--space-3); }
+    .sg-label { display: block; font-size: var(--fs-micro); font-weight: var(--weight-semibold); color: var(--text-muted); margin-bottom: var(--space-2); }
+    .sg-panel--navy .sg-label { color: var(--on-navy-muted); }
+    .sg-phone { width: 100%; max-width: 390px; }
+    .sg-matrix { display: grid; grid-template-columns: 140px repeat(6, minmax(120px, 1fr)); gap: var(--space-3) var(--space-4); align-items: center; overflow-x: auto; }
+    .sg-matrix > .sg-head { font-size: var(--fs-caption); font-weight: var(--weight-bold); color: var(--text-muted); }
+    .sg-matrix .ui-btn { min-width: 0; }
+    .sg-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-3); }
+    .sg-swatch { border: var(--border-width) solid var(--line); border-radius: var(--radius-md); overflow: hidden; background: var(--white); }
+    .sg-swatch i { display: block; height: 56px; }
+    .sg-swatch span { display: block; padding: var(--space-2) var(--space-10); font-size: var(--fs-caption); }
+    .sg-swatch code { display: block; font-size: var(--fs-micro); color: var(--text-muted); }
+    .sg-type > * + * { margin-top: var(--space-3); }
+    .sg-scale { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-4); }
+    .sg-scale div { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); font-size: var(--fs-micro); color: var(--text-muted); }
+    .sg-scale b { display: block; background: var(--navy-tint); border-radius: var(--radius-xs); }
+    .sg-shadow { width: 120px; height: 72px; border-radius: var(--radius-lg); background: var(--white); display: flex; align-items: flex-end; padding: var(--space-2); font-size: var(--fs-micro); color: var(--text-muted); }
+    .sg-screen { display: flex; flex-direction: column; border-radius: var(--radius-hero); overflow: hidden; border: var(--border-width) solid var(--line); background: var(--bg); }
+    .sg-screen__body { padding: var(--space-6) var(--space-screen) var(--space-3); display: flex; flex-direction: column; gap: var(--space-4); }
+    @media (max-width: 760px) {
+      .sg { padding-top: var(--space-6); }
+      .sg-panel { padding: var(--space-4); }
+    }
+  </style>
+</head>
+<body class="ui-app">
+  <main class="sg">
+    <div class="sg-top">
+      <div>
+        <h1 class="ui-h1">Rally Club styleguide</h1>
+        <p class="ui-small ui-muted">Every component and state, built from <code>tokens.css</code>. Phase 1 foundation.</p>
+      </div>
+      <nav class="sg-nav" aria-label="Sections">
+        <a class="ui-chip" href="#tokens">Tokens</a>
+        <a class="ui-chip" href="#buttons">Buttons</a>
+        <a class="ui-chip" href="#selection">Selection</a>
+        <a class="ui-chip" href="#forms">Forms</a>
+        <a class="ui-chip" href="#cards">Cards</a>
+        <a class="ui-chip" href="#feedback">Feedback</a>
+        <a class="ui-chip" href="#layout">App layout</a>
+      </nav>
+    </div>
+
+    <!-- ================= tokens ================= -->
+    <section class="sg-section" id="tokens" aria-labelledby="tokensTitle">
+      <h2 class="ui-h2" id="tokensTitle">Tokens</h2>
+      <p class="sg-lede">Colours, type, spacing, radii and shadows from the build spec. Change them in <code>public/tokens.css</code>.</p>
+      <div class="sg-panel sg-stack">
+        <span class="sg-label">Colour</span>
+        <div class="sg-swatches" id="swatches"></div>
+      </div>
+      <div class="sg-grid sg-grid--2 ui-mt">
+        <div class="sg-panel sg-type">
+          <span class="sg-label">Type · Plus Jakarta Sans</span>
+          <p class="ui-display">Display 40</p>
+          <p class="ui-h1">Heading 1 · 28</p>
+          <p class="ui-h2">Heading 2 · 22</p>
+          <p class="ui-section">Section · 17</p>
+          <p class="ui-body">Body · 15 · Reserve tables in seconds and take lessons with club coaches.</p>
+          <p class="ui-small ui-muted">Small · 13 · Secondary text in muted ink.</p>
+          <p class="ui-caption ui-muted">Caption · 12</p>
+          <p><span class="ui-num" style="font-size: var(--fs-num-xl)">18:00 – 19:00</span></p>
+        </div>
+        <div class="sg-panel sg-stack">
+          <span class="sg-label">Spacing · 4 8 12 16 20 24 32 48</span>
+          <div class="sg-scale" id="spacing"></div>
+          <span class="sg-label">Radius · 12 · 14 · 16 · 18 · 22 · 24 · pill</span>
+          <div class="sg-scale" id="radii"></div>
+          <span class="sg-label">Shadow</span>
+          <div class="sg-row" id="shadows"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= buttons ================= -->
+    <section class="sg-section" id="buttons" aria-labelledby="buttonsTitle">
+      <h2 class="ui-h2" id="buttonsTitle">Buttons</h2>
+      <p class="sg-lede">One Button component: <code>UI.button({ label, variant, size, iconLeft, iconRight, block })</code> or the classes directly. Hover, pressed and focus are shown forced on the right; hover and tab through the live ones.</p>
+      <div class="sg-panel">
+        <div class="sg-matrix" id="matrix"></div>
+      </div>
+      <div class="sg-panel sg-panel--navy ui-mt">
+        <span class="sg-label">On navy</span>
+        <div class="sg-matrix" id="matrixNavy"></div>
+      </div>
+      <div class="sg-grid sg-grid--2 ui-mt">
+        <div class="sg-panel sg-stack">
+          <span class="sg-label">Sizes · sm 40 · md 48 · lg 56</span>
+          <div class="sg-row" id="sizes"></div>
+          <span class="sg-label">Icons · leading, trailing, icon only</span>
+          <div class="sg-row" id="icons"></div>
+        </div>
+        <div class="sg-panel sg-stack">
+          <span class="sg-label">Loading keeps the width (click it)</span>
+          <div class="sg-row" id="loadingDemo"></div>
+          <span class="sg-label">Icon buttons</span>
+          <div class="sg-row" id="iconButtons"></div>
+          <span class="sg-label">Link</span>
+          <div class="sg-row"><a class="ui-link" href="#buttons">See all</a></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= selection ================= -->
+    <section class="sg-section" id="selection" aria-labelledby="selectionTitle">
+      <h2 class="ui-h2" id="selectionTitle">Selection</h2>
+      <p class="sg-lede">Date strip, segmented control and tabs, start-time slots, chips. Arrow keys move between options.</p>
+      <div class="sg-grid sg-grid--2">
+        <div class="sg-panel sg-panel--app sg-stack">
+          <span class="sg-label">DateStrip · 7 days, selected = navy, outside the booking window = disabled</span>
+          <div id="dates"></div>
+          <span class="ui-hint">Members can book further ahead</span>
+          <span class="sg-label">SegmentedControl · duration</span>
+          <div id="durations"></div>
+          <span class="sg-label">SegmentedControl as tabs</span>
+          <div id="tabs"></div>
+          <div class="ui-card ui-small" id="tabPanel" role="tabpanel">Upcoming bookings would show here.</div>
+        </div>
+        <div class="sg-panel sg-panel--app sg-stack">
+          <div class="ui-card__row">
+            <span class="ui-label">Start time</span>
+            <span class="ui-legend"><span><i class="ui-legend__peak"></i>Peak</span><span><i class="ui-legend__full"></i>Full</span></span>
+          </div>
+          <div id="slots"></div>
+          <span class="sg-label">Chips · level filters (pill) and skill level (block)</span>
+          <div class="ui-chips" id="filters"></div>
+          <div class="ui-radio-cards--2" id="levels" style="grid-template-columns: repeat(3, minmax(0, 1fr))"></div>
+          <span class="sg-label">Forced states · hover, focus, disabled</span>
+          <div class="ui-chips">
+            <button type="button" class="ui-chip is-hover">Hover</button>
+            <button type="button" class="ui-chip is-focus">Focus</button>
+            <button type="button" class="ui-chip" disabled>Disabled</button>
+            <button type="button" class="ui-chip is-focus" aria-pressed="true">Selected + focus</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= forms ================= -->
+    <section class="sg-section" id="forms" aria-labelledby="formsTitle">
+      <h2 class="ui-h2" id="formsTitle">Forms</h2>
+      <p class="sg-lede">Inputs with label, focus and error state; checkbox; toggle; radio cards for plans and table areas; option rows for payment.</p>
+      <div class="sg-grid sg-grid--2">
+        <div class="sg-panel sg-stack">
+          <div class="ui-field">
+            <label class="ui-field__label" for="f1">Full name</label>
+            <input class="ui-input" id="f1" placeholder="First and last name">
+          </div>
+          <div class="ui-field">
+            <label class="ui-field__label" for="f2">Email · focused</label>
+            <input class="ui-input is-focus" id="f2" type="email" value="you@example.com">
+          </div>
+          <div class="ui-field">
+            <label class="ui-field__label" for="f3">Password · error</label>
+            <input class="ui-input" id="f3" type="password" value="short" aria-invalid="true" aria-describedby="f3e">
+            <span class="ui-field__error" id="f3e">Use 8 or more characters.</span>
+          </div>
+          <div class="ui-field">
+            <label class="ui-field__label" for="f4">Phone · disabled with help</label>
+            <input class="ui-input" id="f4" disabled value="050-123-4567" aria-describedby="f4h">
+            <span class="ui-field__help" id="f4h">Used for reminders only.</span>
+          </div>
+          <div class="ui-inline">
+            <label class="ui-sr" for="promo">Promo code</label>
+            <input class="ui-input ui-input--md" id="promo" placeholder="Promo code">
+            <button type="button" class="ui-btn ui-btn--secondary ui-btn--md" style="border-color: var(--ink)">Apply</button>
+          </div>
+          <label class="ui-check"><input type="checkbox" checked> <span>I agree to the club rules, terms and cancellation policy.</span></label>
+          <div class="ui-card">
+            <label class="ui-toggle">
+              <span class="ui-toggle__text"><span class="ui-toggle__title">Split the cost</span><span class="ui-toggle__sub">Each player pays their share in the app</span></span>
+              <span class="ui-switch"><input type="checkbox" role="switch" checked aria-label="Split the cost"><span class="ui-switch__track"></span><span class="ui-switch__knob"></span></span>
+            </label>
+            <div class="ui-card__divider ui-mt-sm">
+              <label class="ui-toggle">
+                <span class="ui-toggle__text"><span class="ui-toggle__title">Reminders</span><span class="ui-toggle__sub">Off</span></span>
+                <span class="ui-switch"><input type="checkbox" role="switch" aria-label="Reminders"><span class="ui-switch__track"></span><span class="ui-switch__knob"></span></span>
+              </label>
+            </div>
+            <div class="ui-card__divider ui-mt-sm">
+              <label class="ui-toggle">
+                <span class="ui-toggle__text"><span class="ui-toggle__title">Disabled</span><span class="ui-toggle__sub">Not available on your plan</span></span>
+                <span class="ui-switch"><input type="checkbox" role="switch" disabled aria-label="Disabled"><span class="ui-switch__track"></span><span class="ui-switch__knob"></span></span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="sg-panel sg-panel--app sg-stack">
+          <span class="sg-label">RadioCard · membership (selected = navy)</span>
+          <div class="ui-radio-cards" role="radiogroup" aria-label="Membership">
+            <label class="ui-radio-card">
+              <input type="radio" name="plan" value="dropin">
+              <span class="ui-radio-card__body"><span class="ui-radio-card__dot" aria-hidden="true"></span><span class="ui-radio-card__main">
+                <span class="ui-radio-card__head"><span class="ui-radio-card__name">Drop-in</span><span class="ui-radio-card__price">Free</span></span>
+                <span class="ui-radio-card__desc">Standard table rates · book up to 3 days ahead</span></span></span>
+            </label>
+            <label class="ui-radio-card">
+              <span class="ui-badge ui-badge--popular">Most popular</span>
+              <input type="radio" name="plan" value="club" checked>
+              <span class="ui-radio-card__body"><span class="ui-radio-card__dot" aria-hidden="true"></span><span class="ui-radio-card__main">
+                <span class="ui-radio-card__head"><span class="ui-radio-card__name">Club</span><span class="ui-radio-card__price">[PRICE]<span class="ui-radio-card__per"> /mo</span></span></span>
+                <ul class="ui-radio-card__perks">
+                  <li><span data-ui-icon="check"></span>Member rate on every table</li>
+                  <li><span data-ui-icon="check"></span>4 table credits a month</li>
+                  <li><span data-ui-icon="check"></span>Book 14 days ahead</li>
+                </ul></span></span>
+            </label>
+            <label class="ui-radio-card">
+              <input type="radio" name="plan" value="pro">
+              <span class="ui-radio-card__body"><span class="ui-radio-card__dot" aria-hidden="true"></span><span class="ui-radio-card__main">
+                <span class="ui-radio-card__head"><span class="ui-radio-card__name">Pro</span><span class="ui-radio-card__price">[PRICE]<span class="ui-radio-card__per"> /mo</span></span></span>
+                <span class="ui-radio-card__desc">Everything in Club · unlimited off-peak tables · 1 private lesson a month · book 30 days ahead</span></span></span>
+            </label>
+          </div>
+          <span class="sg-label">RadioCard compact · table area</span>
+          <div class="ui-radio-cards--2" role="radiogroup" aria-label="Table">
+            <label class="ui-radio-card ui-radio-card--compact"><input type="radio" name="area" checked>
+              <span class="ui-radio-card__body"><span class="ui-radio-card__name">Main hall</span><span class="ui-radio-card__desc">Auto-assign best table</span></span></label>
+            <label class="ui-radio-card ui-radio-card--compact"><input type="radio" name="area">
+              <span class="ui-radio-card__body"><span class="ui-radio-card__name">Private room</span><span class="ui-radio-card__desc">More space · 1 table</span></span></label>
+          </div>
+          <span class="sg-label">Option rows · payment method</span>
+          <div class="ui-card ui-card--list" id="payment"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= cards ================= -->
+    <section class="sg-section" id="cards" aria-labelledby="cardsTitle">
+      <h2 class="ui-h2" id="cardsTitle">Cards</h2>
+      <p class="sg-lede">Card, navy HeroCard with the table line and the ball, stat cards, quick actions, booking cards, badges, avatars and the ticket.</p>
+      <div class="sg-grid sg-grid--3">
+        <div class="sg-panel sg-panel--app sg-stack">
+          <span class="sg-label">HeroCard</span>
+          <div class="ui-hero">
+            <div class="ui-card__row"><span class="ui-eyebrow">Next up · Tomorrow</span><span class="ui-badge ui-badge--on-navy">Confirmed</span></div>
+            <div class="sg-stack" style="gap: var(--space-1)">
+              <span class="ui-hero__time">18:00 – 19:00</span>
+              <span class="ui-hero__meta">Table 3 · Main hall · 2 players</span>
+            </div>
+            <div class="ui-hero__actions" id="heroActions"></div>
+          </div>
+          <span class="sg-label">Stat cards</span>
+          <div class="ui-radio-cards--2">
+            <div class="ui-stat ui-stat--navy"><span class="ui-stat__label">Table credits</span><span class="ui-stat__value">3 <span class="ui-stat__unit">left</span></span></div>
+            <div class="ui-stat"><span class="ui-stat__label">Lesson pack</span><span class="ui-stat__value">4 <span class="ui-stat__unit">of 10</span></span></div>
+          </div>
+        </div>
+        <div class="sg-panel sg-panel--app sg-stack">
+          <span class="sg-label">Quick actions</span>
+          <div class="ui-radio-cards--2" style="gap: var(--space-3)">
+            <a class="ui-card ui-action" href="#cards"><span class="ui-action__icon"><span data-ui-icon="table"></span></span><span><span class="ui-action__title">Book a table</span><br><span class="ui-action__sub">From 30 min</span></span></a>
+            <a class="ui-card ui-action" href="#cards"><span class="ui-action__icon ui-action__icon--accent"><span data-ui-icon="coach"></span></span><span><span class="ui-action__title">Book a lesson</span><br><span class="ui-action__sub">Private or group</span></span></a>
+            <a class="ui-card ui-action ui-action--row" href="#cards"><span class="ui-action__icon ui-action__icon--soft"><span data-ui-icon="users"></span></span><span class="ui-action__title">Open play</span></a>
+            <a class="ui-card ui-action ui-action--row" href="#cards"><span class="ui-action__icon ui-action__icon--soft"><span data-ui-icon="card"></span></span><span class="ui-action__title">Membership</span></a>
+          </div>
+          <span class="sg-label">Booking cards · badges</span>
+          <div class="ui-card ui-card--tight sg-stack">
+            <div class="ui-card__row" style="justify-content: flex-start">
+              <span class="ui-dateblock"><span class="ui-dateblock__dow">Tue</span><span class="ui-dateblock__num">27</span></span>
+              <span class="sg-stack" style="gap: 2px; flex: 1 1 auto"><span class="ui-card__title">Table · 18:00 – 19:00</span><span class="ui-small ui-muted">Main hall · 2 players</span></span>
+              <span class="ui-badge ui-badge--table">Table</span>
+            </div>
+          </div>
+          <div class="ui-card ui-card--tight sg-stack">
+            <div class="ui-card__row" style="justify-content: flex-start">
+              <span class="ui-dateblock"><span class="ui-dateblock__dow">Thu</span><span class="ui-dateblock__num">29</span></span>
+              <span class="sg-stack" style="gap: 2px; flex: 1 1 auto"><span class="ui-card__title">Private lesson</span><span class="ui-small ui-muted">19:00 · with [Coach]</span></span>
+              <span class="ui-badge ui-badge--lesson">Lesson</span>
+            </div>
+          </div>
+          <div class="ui-row-badges sg-row">
+            <span class="ui-pill">Club member</span>
+            <span class="ui-badge ui-badge--success">Confirmed</span>
+            <span class="ui-badge ui-badge--danger">Cancelled</span>
+            <span class="ui-badge ui-badge--neutral">Past</span>
+          </div>
+          <span class="sg-label">Avatars · players</span>
+          <div class="ui-avatars">
+            <span class="ui-avatar">You</span><span class="ui-avatar ui-avatar--tint">AB</span>
+            <button type="button" class="ui-avatar ui-avatar--add" aria-label="Add player"><span data-ui-icon="plus"></span></button>
+            <span class="ui-avatar ui-avatar--lg">MK</span>
+          </div>
+        </div>
+        <div class="sg-panel sg-panel--navy sg-stack">
+          <span class="sg-label">Ticket · dashed tear line, QR</span>
+          <div class="ui-ticket">
+            <div class="ui-ticket__grid">
+              <div><span class="ui-ticket__k">Date</span><br><span class="ui-ticket__v">Tue 27 Oct</span></div>
+              <div><span class="ui-ticket__k">Time</span><br><span class="ui-ticket__v">18:00 – 19:00</span></div>
+              <div><span class="ui-ticket__k">Where</span><br><span class="ui-ticket__v">Main hall</span></div>
+              <div><span class="ui-ticket__k">Booking</span><br><span class="ui-ticket__v">#RC-[ID]</span></div>
+            </div>
+            <div class="ui-ticket__tear" aria-hidden="true"></div>
+            <div class="ui-ticket__qr" id="qr"></div>
+            <span class="ui-ticket__note">Scan at the door to check in</span>
+          </div>
+          <span class="sg-label">Date block · checkout</span>
+          <div class="sg-row"><span class="ui-dateblock ui-dateblock--navy" style="box-shadow: 0 0 0 1px var(--on-navy-line)"><span class="ui-dateblock__dow">TUE</span><span class="ui-dateblock__num">27</span></span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= feedback ================= -->
+    <section class="sg-section" id="feedback" aria-labelledby="feedbackTitle">
+      <h2 class="ui-h2" id="feedbackTitle">Feedback</h2>
+      <p class="sg-lede">Empty and error states, skeleton loaders, toasts, progress, callouts and notes.</p>
+      <div class="sg-grid sg-grid--3">
+        <div class="sg-panel sg-panel--app sg-stack">
+          <span class="sg-label">EmptyState</span>
+          <div class="ui-empty">
+            <span class="ui-empty__icon"><span data-ui-icon="calendar"></span></span>
+            <span class="ui-empty__title">No bookings yet</span>
+            <span class="ui-empty__text">Book a table or a lesson and it shows up here.</span>
+            <span id="emptyCta"></span>
+          </div>
+          <span class="sg-label">Error with retry</span>
+          <div class="ui-empty ui-error" role="alert">
+            <span class="ui-empty__icon"><span data-ui-icon="alert"></span></span>
+            <span class="ui-empty__title">Couldn't load times</span>
+            <span class="ui-empty__text">Check your connection and try again.</span>
+            <span id="retryCta"></span>
+          </div>
+        </div>
+        <div class="sg-panel sg-panel--app sg-stack" aria-busy="true" aria-label="Loading example">
+          <span class="sg-label">Skeleton loaders</span>
+          <span class="ui-skel ui-skel--title"></span>
+          <span class="ui-skel ui-skel--text" style="width: 80%"></span>
+          <span class="ui-skel ui-skel--card"></span>
+          <div class="ui-slots"><span class="ui-skel ui-skel--slot"></span><span class="ui-skel ui-skel--slot"></span><span class="ui-skel ui-skel--slot"></span><span class="ui-skel ui-skel--slot"></span></div>
+        </div>
+        <div class="sg-panel sg-panel--app sg-stack">
+          <span class="sg-label">Toast</span>
+          <div class="sg-row" id="toastButtons"></div>
+          <div class="ui-toast" style="animation: none">
+            <span class="ui-toast__dot" aria-hidden="true"></span><span>Booking cancelled. Refund on its way.</span>
+          </div>
+          <span class="sg-label">Steps · sign up</span>
+          <div class="ui-card__row"><span class="ui-steps-label">Step 2 of 3</span></div>
+          <div class="ui-steps" aria-label="Step 2 of 3"><span class="is-done"></span><span class="is-done"></span><span></span></div>
+          <span class="sg-label">Capacity · group class</span>
+          <div class="ui-meter" role="img" aria-label="6 of 8 spots taken"><span style="width: 75%"></span></div>
+          <div class="ui-meter ui-meter--full" role="img" aria-label="Full"><span style="width: 100%"></span></div>
+          <span class="sg-label">Callout and note</span>
+          <div class="ui-callout"><span data-ui-icon="gift"></span>Save with a 10-lesson pack</div>
+          <p class="ui-note"><span data-ui-icon="clock"></span><span>Free cancellation until Mon 26 Oct, 18:00 (24 h before).</span></p>
+          <div class="ui-or">OR</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= app layout ================= -->
+    <section class="sg-section" id="layout" aria-labelledby="layoutTitle">
+      <h2 class="ui-h2" id="layoutTitle">App layout</h2>
+      <p class="sg-lede">Screen header with back button, the BottomActionBar and the TabBar, at phone width.</p>
+      <div class="sg-grid sg-grid--2">
+        <div class="sg-screen sg-phone">
+          <div class="sg-screen__body">
+            <div class="ui-card__row" style="justify-content: flex-start">
+              <span id="backBtn"></span>
+              <div class="sg-stack" style="gap: 0"><span class="ui-h2">Book a table</span><span class="ui-small ui-muted">Rally Club · Main hall</span></div>
+            </div>
+          </div>
+          <div class="ui-actionbar">
+            <div class="ui-actionbar__summary">
+              <span class="ui-actionbar__label">Tue 27 · 18:00–19:00</span>
+              <span class="ui-actionbar__price">[PRICE] <span class="ui-actionbar__rate">member rate</span></span>
+            </div>
+            <span id="continueBtn"></span>
+          </div>
+        </div>
+        <div class="sg-screen sg-phone">
+          <div class="sg-screen__body">
+            <div class="ui-card__row">
+              <div class="sg-stack" style="gap: 2px"><span class="ui-small ui-muted">Good evening</span><span class="ui-num" style="font-size: var(--fs-num-lg)">[First name]</span></div>
+              <div class="sg-row" style="gap: var(--space-10)"><span class="ui-pill">Club member</span><span id="bellBtn"></span></div>
+            </div>
+          </div>
+          <nav class="ui-tabbar" aria-label="Main" id="tabbar"></nav>
+        </div>
+      </div>
+      <div class="sg-grid sg-grid--2 ui-mt">
+        <div class="sg-panel sg-panel--navy"><span class="sg-label">Logo on navy</span><div id="logoNavy"></div></div>
+        <div class="sg-panel"><span class="sg-label">Logo on white</span><div id="logoWhite"></div></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="ui.js"></script>
+  <script>
+    const $ = s => document.querySelector(s);
+
+    // ---- tokens: read live values so the page always shows what tokens.css says ----
+    const css = getComputedStyle(document.documentElement);
+    const v = name => css.getPropertyValue(name).trim();
+    $('#swatches').innerHTML = [
+      ['--navy-900', 'Primary navy'], ['--navy-700', 'Hover navy'], ['--navy-500', 'Focus / link hover'],
+      ['--white', 'White'], ['--bg-app', 'App background'], ['--surface-2', 'Subtle fill'], ['--track', 'Segment track'],
+      ['--line', 'Border'], ['--muted', 'Text muted'], ['--on-navy-muted', 'Muted on navy'],
+      ['--orange', 'Accent (fill only)'], ['--orange-text', 'Accent text'], ['--orange-100', 'Accent soft'], ['--orange-50', 'Accent softer'],
+      ['--green', 'Success'], ['--red', 'Danger'], ['--red-200', 'Danger border'],
+    ].map(([t, n]) => `<div class="sg-swatch"><i style="background: var(${t})"></i><span>${n}<code>${t} · ${v(t)}</code></span></div>`).join('');
+    $('#spacing').innerHTML = [1, 2, 3, 4, 5, 6, 7, 8].map(i =>
+      `<div><b style="width: var(--space-${i}); height: var(--space-${i})"></b>${v(`--space-${i}`)}</div>`).join('');
+    $('#radii').innerHTML = ['--radius-md', '--radius-tile', '--radius-btn-lg', '--radius-lg', '--radius-hero', '--radius-ticket', '--radius-full'].map(r =>
+      `<div><b style="width: 48px; height: 48px; border-radius: var(${r}); background: var(--ink)"></b>${r.replace('--radius-', '')}</div>`).join('');
+    $('#shadows').innerHTML = ['--shadow-button', '--shadow-hero', '--shadow-raised', '--shadow-bar'].map(s =>
+      `<div class="sg-shadow" style="box-shadow: var(${s})">${s.replace('--shadow-', '')}</div>`).join('');
+
+    // ---- button matrix: variants × states ----
+    const states = [['Default', ''], ['Hover', 'is-hover'], ['Pressed', 'is-active'], ['Focus', 'is-focus'], ['Disabled', 'disabled'], ['Loading', 'loading']];
+    function matrix(variants) {
+      let html = '<span></span>' + states.map(([s]) => `<span class="sg-head">${s}</span>`).join('');
+      for (const [variant, label] of variants) {
+        html += `<span class="sg-label" style="margin: 0">${variant}</span>`;
+        for (const [, st] of states) {
+          html += UI.button({ label, variant, size: 'md', cls: st.startsWith('is-') ? st : '', disabled: st === 'disabled', loading: st === 'loading' });
+        }
+      }
+      return html;
+    }
+    $('#matrix').innerHTML = matrix([['primary', 'Continue'], ['secondary', 'Apply'], ['ghost', 'Skip for now'], ['danger', 'Cancel booking'], ['accent', 'Join class']]);
+    $('#matrixNavy').innerHTML = matrix([['inverse', 'Create account'], ['outline-on-navy', 'Manage']]);
+    $('#sizes').innerHTML = ['sm', 'md', 'lg'].map(size => UI.button({ label: `Book ${size}`, size })).join('');
+    $('#icons').innerHTML = UI.button({ label: 'Continue', iconRight: 'arrow-right' })
+      + UI.button({ label: 'Pay & confirm', iconLeft: 'lock' })
+      + UI.button({ label: 'Check-in pass', variant: 'secondary', iconLeft: 'qr' })
+      + UI.button({ label: 'Add player', variant: 'secondary', iconOnly: 'plus' });
+    $('#loadingDemo').innerHTML = UI.button({ label: 'Pay ₪60 & confirm', iconLeft: 'lock', size: 'lg', id: 'payBtn' });
+    $('#payBtn').addEventListener('click', e => {
+      const btn = e.currentTarget;
+      UI.setLoading(btn, true);
+      setTimeout(() => { UI.setLoading(btn, false); UI.toast('Payment confirmed', { kind: 'success' }); }, 1600);
+    });
+    $('#iconButtons').innerHTML = UI.iconButton({ icon: 'back', label: 'Back' }) + UI.iconButton({ icon: 'bell', label: 'Notifications', dot: true })
+      + '<button type="button" class="ui-icon-btn is-focus" aria-label="Focused example">' + UI.icon('x') + '</button>';
+
+    // ---- selection widgets ----
+    const dows = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const nums = [26, 27, 28, 29, 30, 31, 1];
+    UI.dateStrip($('#dates'), {
+      days: dows.map((d, i) => ({ value: String(i), dow: d, num: nums[i], disabled: i > 4 })),
+      value: '1',
+      onChange: v => UI.toast(`Picked ${dows[v]} ${nums[v]}`),
+    });
+    UI.segmented($('#durations'), { label: 'Duration', options: [30, 60, 90].map(m => ({ value: m, label: `${m} min` })), value: 60 });
+    UI.segmented($('#tabs'), {
+      tabs: true, label: 'Bookings', value: 'upcoming',
+      options: [{ value: 'upcoming', label: 'Upcoming' }, { value: 'past', label: 'Past' }],
+      onChange: v => { $('#tabPanel').textContent = v === 'upcoming' ? 'Upcoming bookings would show here.' : 'Past bookings would show here.'; },
+    });
+    const full = { '17:00': 1, '18:30': 1, '19:00': 1 };
+    UI.slots($('#slots'), {
+      value: '18:00',
+      slots: ['16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30']
+        .map(t => ({ time: t, full: !!full[t], peak: parseInt(t, 10) >= 18 && parseInt(t, 10) < 21 })),
+    });
+    UI.chips($('#filters'), { label: 'Level', value: 'all', options: [['all', 'All levels'], ['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['kids', 'Kids']].map(([value, label]) => ({ value, label })) });
+    UI.chips($('#levels'), { label: 'Your level', block: true, value: 'intermediate', options: [['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced']].map(([value, label]) => ({ value, label })) });
+    UI.options($('#payment'), {
+      label: 'Payment method', value: 'card',
+      options: [{ value: 'card', title: 'Card ending 4242', sub: 'Saved card' }, { value: 'credit', title: 'Use a table credit', sub: '3 credits left this month' }],
+    });
+
+    // ---- cards, feedback, layout ----
+    $('#heroActions').innerHTML = UI.button({ label: 'Check-in pass', variant: 'inverse', iconLeft: 'qr' }) + UI.button({ label: 'Manage', variant: 'outline-on-navy' });
+    $('#qr').innerHTML = UI.qrPlaceholder('RC-2741');
+    $('#emptyCta').innerHTML = UI.button({ label: 'Book a table', size: 'sm' });
+    $('#retryCta').innerHTML = UI.button({ label: 'Try again', variant: 'secondary', size: 'sm' });
+    $('#toastButtons').innerHTML = UI.button({ label: 'Show toast', variant: 'secondary', size: 'sm', id: 't1' }) + UI.button({ label: 'Error toast', variant: 'danger', size: 'sm', id: 't2' });
+    $('#t1').onclick = () => UI.toast('Added to your calendar', { kind: 'success' });
+    $('#t2').onclick = () => UI.toast('That slot was just taken', { kind: 'error' });
+    $('#backBtn').outerHTML = UI.iconButton({ icon: 'back', label: 'Back' });
+    $('#bellBtn').outerHTML = UI.iconButton({ icon: 'bell', label: 'Notifications', dot: true });
+    $('#continueBtn').outerHTML = UI.button({ label: 'Continue', iconRight: 'arrow-right' });
+    $('#tabbar').innerHTML = [['home', 'Home'], ['table', 'Tables'], ['coach', 'Lessons'], ['calendar', 'Bookings'], ['profile', 'Profile']]
+      .map(([ic, label], i) => `<a class="ui-tab" href="#layout"${i === 0 ? ' aria-current="page"' : ''}>${UI.icon(ic)}${label}</a>`).join('');
+    $('#logoNavy').innerHTML = UI.logo({ onNavy: true });
+    $('#logoWhite').innerHTML = UI.logo({ onNavy: false });
+    UI.hydrate();
+  </script>
+</body>
+</html>

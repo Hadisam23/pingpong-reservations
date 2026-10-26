@@ -81,24 +81,30 @@ Five tables and default opening hours/prices are created on first start. Change 
 
 ## Design system
 
-The UI is plain HTML/CSS/JS with one design system:
+The UI follows the Rally Club design in `docs/design/screens/` and `docs/BUILD_SPEC.md` (§1). Open
+**`/styleguide`** to see every component in every state.
 
 - **`public/tokens.css`** holds every colour, type size, spacing step, radius, shadow and timing. Change the
-  look here. Nothing else in `public/` contains a raw colour.
-  - Palette: navy `--navy-900` #0B1F3A (primary) and `--navy-700` #1E3A8A (hover/active), white, greys
-    `--gray-50/200/500`, and one accent, the ball orange `--orange-500` #F97316. Orange is used for marks
-    only and never for text; orange text uses `--orange-700`. All text pairs pass WCAG AA.
-  - Type: Inter (self-hosted in `public/fonts/`, OFL licence). Scale 12 / 14 / 16 / 20 / 24 / 32 / 40.
-  - Spacing: 4 / 8 / 12 / 16 / 24 / 32 / 48 (`--space-1` … `--space-7`).
-- **`public/styles.css`** holds the components, all built from tokens: header, card, choices, forms,
-  alerts, badges, the booking grid, the ticket, the front-desk timeline and the dialog.
-- **Button component**: `class="btn btn--{primary|secondary|ghost|danger} btn--{sm|md|lg}"`, plus `btn--block` and
-  `btn--icon`. It has hover, pressed, focus and disabled states. For the loading state, call `setLoading(button, true|false)`
-  from `public/common.js`: the spinner keeps the button's width. Icons: `<span data-icon="check"></span>` or
-  `icon('check')`.
-- Session types are told apart by mark (fill and edge), not by colour: classes `tm-0` … `tm-4`.
+  look here. Nothing else in `public/` contains a raw colour; `test/design-tokens.test.js` checks this,
+  checks the spec values, and checks WCAG AA contrast.
+  - Palette: navy `--navy-900` #0B1F3A, hover `--navy-700` #13305C, focus `--navy-500` #1E3A8A, white, app
+    background #F4F6FA, borders #E2E8F0, muted text #5B6B82. One accent, the ball orange `--orange` #F97316,
+    used as a fill only; orange text uses `--orange-text` #C2410C.
+  - Type: Plus Jakarta Sans (self-hosted in `public/fonts/`, OFL licence). Display 40 · H1 28 · H2 22 ·
+    Section 17 · Body 15 · Small 13 · Caption 11–12.
+  - Spacing 4 / 8 / 12 / 16 / 20 / 24 / 32 / 48. Radius 12 (inputs) · 18 (cards) · 22–24 (hero) · pill.
+- **`public/components.css`** + **`public/ui.js`** hold the components (prefix `ui-`):
+  - **Button** `UI.button({ label, variant, size, iconLeft, iconRight, block })`. Variants: primary,
+    inverse, secondary, outline-on-navy, ghost, danger, accent. Sizes: sm 40 · md 48 · lg 56 (44px tap
+    target). States: hover, pressed, focus ring, disabled, and loading via `UI.setLoading(btn, true)`,
+    which keeps the width.
+  - Selection: `UI.dateStrip`, `UI.segmented` (also tabs), `UI.slots`, `UI.chips`, `UI.options`.
+    All support the arrow keys.
+  - Card, HeroCard, stat card, date block, ticket, badges, avatars, inputs, checkbox, toggle,
+    radio cards, steps, bottom action bar, tab bar, empty/error states, skeletons, `UI.toast()`, icons.
+- `public/styles.css` styles the pages that haven't been rebuilt yet; it reads the same tokens.
 
-The UI was audited with the taste-skill (`.claude/skills/taste-skill`); its output goes to the ignored `.taste-skill/`.
+The taste-skill (`.claude/skills/taste-skill`) is available for reviews; its output goes to the ignored `.taste-skill/`.
 
 ## API
 
