@@ -22,8 +22,12 @@ const newToken = () => crypto.randomBytes(24).toString('base64url');
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function createReservations(db, { service, pricing, payments, checkIn, notifier, now = () => new Date() }) {
-  const SELECT = `SELECT b.*, t.name AS tableName, t.number AS tableNumber, a.id AS areaId, a.name AS areaName
-    FROM bookings b LEFT JOIN tables t ON t.id = b.tableId LEFT JOIN areas a ON a.id = t.areaId`;
+  const SELECT = `SELECT b.*, t.name AS tableName, t.number AS tableNumber, a.id AS areaId, a.name AS areaName,
+      cu.name AS coachName, lt.name AS lessonName, lt.maxStudents AS lessonMax,
+      cs.title AS classTitle, cs.level AS classLevel, cs.kind AS classKind
+    FROM bookings b LEFT JOIN tables t ON t.id = b.tableId LEFT JOIN areas a ON a.id = t.areaId
+      LEFT JOIN coaches c ON c.id = b.coachId LEFT JOIN users cu ON cu.id = c.userId
+      LEFT JOIN lesson_types lt ON lt.id = b.lessonTypeId LEFT JOIN class_sessions cs ON cs.id = b.classSessionId`;
   const stmts = {
     areas: db.prepare(`SELECT a.*, (SELECT COUNT(*) FROM tables t WHERE t.areaId = a.id AND t.active = 1) AS tableCount
       FROM areas a ORDER BY a.sortOrder, a.id`),
@@ -35,10 +39,15 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
     codeExists: db.prepare('SELECT 1 FROM bookings WHERE code = ?'),
     insertHold: db.prepare(`INSERT INTO bookings
       (code, manageToken, tableId, date, startMin, endMin, name, phone, email, players, price, basePrice, type, status, source,
-       createdAt, updatedAt, userId, kind, holdExpiresAt)
+       createdAt, updatedAt, userId, kind, coachId, lessonTypeId, classSessionId, holdExpiresAt)
       VALUES (@code, @manageToken, @tableId, @date, @startMin, @endMin, @name, @phone, @email, @players, @price, @basePrice,
-       'casual', 'held', 'online', @now, @now, @userId, 'TABLE', @holdExpiresAt)`),
-    releaseUserHolds: db.prepare("UPDATE bookings SET status = 'expired', updatedAt = ? WHERE userId = ? AND status = 'held' AND kind = 'TABLE'"),
+       @type, 'held', 'online', @now, @now, @userId, @kind, @coachId, @lessonTypeId, @classSessionId, @holdExpiresAt)`),
+    releaseUserHolds: db.prepare("UPDATE bookings SET status = 'expired', updatedAt = ? WHERE userId = ? AND status = 'held'"),
+    packs: db.prepare('SELECT * FROM lesson_packs WHERE userId = ? AND expiresAt > ? AND lessonsUsed < lessonsTotal ORDER BY expiresAt, id'),
+    packUse: db.prepare('UPDATE lesson_packs SET lessonsUsed = lessonsUsed + ? WHERE id = ?'),
+    lastPackUsed: db.prepare('SELECT * FROM lesson_packs WHERE userId = ? AND lessonsUsed > 0 ORDER BY expiresAt DESC, id DESC LIMIT 1'),
+    includedLessonsUsed: db.prepare(`SELECT COUNT(*) AS n FROM bookings WHERE userId = ? AND kind = 'LESSON' AND paymentMethod = 'MEMBERSHIP'
+      AND status IN ('confirmed', 'checked_in', 'no_show') AND date BETWEEN ? AND ?`),
     expireHolds: db.prepare("UPDATE bookings SET status = 'expired', updatedAt = @now WHERE status = 'held' AND holdExpiresAt <= @now"),
     expire: db.prepare("UPDATE bookings SET status = 'expired', updatedAt = ? WHERE id = ? AND status = 'held'"),
     extendHold: db.prepare('UPDATE bookings SET holdExpiresAt = ?, updatedAt = ? WHERE id = ?'),
@@ -234,21 +243,30 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
     const q = pricing.quote({ date, startMin, duration: dur, plan: pricingPlan });
     const count = Math.min(s.maxPlayersPerTable, Math.max(1, Number(players) || 2));
     const create = db.transaction(() => {
-      if (user) stmts.releaseUserHolds.run(iso(), user.id);   // one hold at a time
+      if (user) stmts.releaseUserHolds.run(iso(), user.id);
       const table = freeTable(area, date, startMin, startMin + dur);
       if (!table) throw new ApiError(409, 'slot_taken', 'That time was just taken. Pick another time.');
-      let code;
-      do { code = newCode(); } while (stmts.codeExists.get(code));
-      const manageToken = newToken();
-      const holdExpiresAt = new Date(now().getTime() + HOLD_MINUTES * 60000).toISOString();
-      stmts.insertHold.run({
-        code, manageToken, tableId: table.id, date, startMin, endMin: startMin + dur,
-        name: user ? user.name : 'Guest', phone: user ? user.phone : null, email: user ? user.email : null,
-        players: count, price: q.subtotal, basePrice: q.base, userId: user ? user.id : null, holdExpiresAt, now: iso(),
+      return insertHoldRow({
+        user, kind: 'TABLE', tableId: table.id, date, startMin, endMin: startMin + dur, players: count, price: q.subtotal, basePrice: q.base,
       });
-      return { code, token: manageToken, expiresAt: holdExpiresAt };
     });
     return create.immediate();
+  }
+
+  // Inserts a hold row (any kind). Call inside an IMMEDIATE transaction that has checked the slot.
+  function insertHoldRow({ user, kind, tableId = null, date, startMin, endMin, players = 1, price, basePrice, coachId = null, lessonTypeId = null, classSessionId = null, minutes = HOLD_MINUTES }) {
+    if (user) stmts.releaseUserHolds.run(iso(), user.id);   // one hold at a time
+    let code;
+    do { code = newCode(); } while (stmts.codeExists.get(code));
+    const manageToken = newToken();
+    const holdExpiresAt = new Date(now().getTime() + minutes * 60000).toISOString();
+    stmts.insertHold.run({
+      code, manageToken, tableId, date, startMin, endMin,
+      name: user ? user.name : 'Guest', phone: user ? user.phone : null, email: user ? user.email : null,
+      players, price, basePrice, userId: user ? user.id : null, holdExpiresAt, now: iso(),
+      kind, type: kind === 'LESSON' ? 'coaching' : 'casual', coachId, lessonTypeId, classSessionId,
+    });
+    return { code, token: manageToken, expiresAt: holdExpiresAt };
   }
 
   function release(code, who) {
@@ -258,14 +276,44 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
 
   // ---------- checkout ----------
 
-  function methodsFor(row, user) {
+  const monthOf = date => [`${date.slice(0, 7)}-01`, `${date.slice(0, 7)}-31`];
+  const packLeft = userId => stmts.packs.all(userId, iso()).reduce((n, p) => n + p.lessonsTotal - p.lessonsUsed, 0);
+
+  // What a hold costs before payment-method choices: { base, memberDiscount, memberLabel, free, peak, label, freeTitle, freeSub }
+  function basis(row, user) {
     const { plan, pricingPlan } = planOf(user);
     const dur = row.endMin - row.startMin;
+    if (row.kind === 'LESSON') {
+      const used = user ? stmts.includedLessonsUsed.get(user.id, ...monthOf(row.date)).n : 0;
+      const free = !!pricingPlan && pricingPlan.includedLessonsPerMonth > used;
+      return {
+        base: row.basePrice, memberDiscount: 0, memberLabel: null, free, peak: false, label: `${row.lessonName}, ${dur} min`,
+        freeTitle: `Included in ${plan.name}`, freeSub: `${pricingPlan ? pricingPlan.includedLessonsPerMonth : 0} private lesson a month on your plan`,
+      };
+    }
+    if (row.kind === 'CLASS') {
+      // Open play is part of Club and Pro
+      const free = !!pricingPlan && row.classKind === 'OPEN_PLAY';
+      return {
+        base: row.basePrice, memberDiscount: free ? row.basePrice : 0, memberLabel: free ? `${plan.name}: open play included` : null,
+        free, peak: false, label: row.classTitle, freeTitle: `Included in ${plan.name}`, freeSub: 'Open play is part of your plan',
+      };
+    }
     const q = pricing.quote({ date: row.date, startMin: row.startMin, duration: dur, plan: pricingPlan });
+    return { ...q, label: `Table, ${dur} min`, freeTitle: `Included in ${plan.name}`, freeSub: 'Off-peak tables are free on your plan' };
+  }
+
+  function methodsFor(row, user) {
+    const dur = row.endMin - row.startMin;
+    const q = basis(row, user);
     const methods = [];
-    if (q.free) methods.push({ id: 'MEMBERSHIP', title: `Included in ${plan.name}`, sub: 'Off-peak tables are free on your plan' });
+    if (q.free) methods.push({ id: 'MEMBERSHIP', title: q.freeTitle, sub: q.freeSub });
+    if (row.kind === 'LESSON' && user) {
+      const left = packLeft(user.id);
+      if (left) methods.push({ id: 'PACK', title: 'Use a lesson pack credit', sub: `${left} lesson${left === 1 ? '' : 's'} left in your pack` });
+    }
     methods.push({ id: 'CARD', ...payments.card });
-    if (user) {
+    if (user && row.kind === 'TABLE') {
       const credits = stmts.creditBalance.get(user.id).n;
       let sub = `${credits} credit${credits === 1 ? '' : 's'} left this month`;
       if (!credits) sub = 'No table credits left';
@@ -279,14 +327,13 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
   function quoteFor(row, user, { paymentMethod, promo, players, split } = {}) {
     const methods = methodsFor(row, user);
     const method = methods.find(m => m.id === paymentMethod && !m.disabled) || methods.find(m => !m.disabled);
-    const { pricingPlan } = planOf(user);
-    const dur = row.endMin - row.startMin;
-    const q = pricing.quote({ date: row.date, startMin: row.startMin, duration: dur, plan: pricingPlan });
-    const lines = [{ label: `Table, ${dur} min`, amount: q.base }];
+    const q = basis(row, user);
+    const lines = [{ label: q.label, amount: q.base }];
     if (q.memberDiscount) lines.push({ label: q.memberLabel, amount: -q.memberDiscount, discount: true });
-    let total = q.subtotal;
-    if (method.id === 'CREDIT' && total > 0) {
-      lines.push({ label: 'Table credit', amount: -total, discount: true });
+    let total = round2(q.base - q.memberDiscount);
+    const covered = { CREDIT: 'Table credit', PACK: 'Lesson pack credit', MEMBERSHIP: q.freeTitle };
+    if (covered[method.id] && total > 0) {
+      lines.push({ label: covered[method.id], amount: -total, discount: true });
       total = 0;
     }
     let promoInfo = null;
@@ -295,7 +342,7 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
       lines.push({ label: `Promo ${promoInfo.code}`, amount: -promoInfo.discount, discount: true });
       total = round2(total - promoInfo.discount);
     }
-    const count = Math.min(settings().maxPlayersPerTable, Math.max(1, Number(players) || row.players || 1));
+    const count = Math.min(maxPlayers(row), Math.max(1, Number(players) || row.players || 1));
     const splitOn = !!split && !!user && count > 1 && total > 0 && method.id === 'CARD';
     const otherShare = splitOn ? Math.floor(total * 100 / count) / 100 : 0;
     const yourShare = splitOn ? round2(total - otherShare * (count - 1)) : total;
@@ -304,6 +351,8 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
       method: method.id, methods, promo: promoInfo, currency: settings().currency,
     };
   }
+
+  const maxPlayers = row => (row.kind === 'CLASS' ? 1 : row.kind === 'LESSON' ? row.lessonMax || 1 : settings().maxPlayersPerTable);
 
   function cancellationInfo(row) {
     const cutoff = settings().cancelCutoffMinutes;
@@ -321,7 +370,7 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
       status: row.status,
       expiresAt: row.holdExpiresAt,
       guest: !row.userId,
-      maxPlayers: settings().maxPlayersPerTable,
+      maxPlayers: maxPlayers(row),
       quote: q,
       cancellation: cancellationInfo(row),
       payments: { provider: payments.provider },
@@ -406,6 +455,13 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
         if (stmts.creditBalance.get(row.userId).n < 1) throw new ApiError(409, 'no_credits', 'You have no table credits left.');
         stmts.ledger.run(row.userId, 'TABLE_CREDIT', -1, `Table booking ${row.code}`, row.id, iso());
       }
+      if (row.paymentMethod === 'PACK') {
+        const pack = stmts.packs.all(row.userId, iso())[0];
+        if (!pack) throw new ApiError(409, 'no_pack', 'Your lesson pack is used up.');
+        stmts.packUse.run(1, pack.id);
+        stmts.ledger.run(row.userId, 'LESSON_PACK', -1, `Lesson ${row.code}`, row.id, iso());
+      }
+      if (row.kind === 'CLASS' && hooks.claimSeat) hooks.claimSeat(row);
       if (row.promoCode) pricing.usePromo(row.promoCode);
       stmts.confirm.run({ id: row.id, checkInCode: checkIn.sign({ bookingId: row.id, userId: row.userId, expiresAt: endsAt(row) }), now: iso() });
       return { row: stmts.byId.get(row.id), fresh: true };
@@ -414,10 +470,10 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
     if (fresh) {
       const v = view(row);
       notifier.notify({
-        userId: row.userId, email: row.email, type: 'booking_confirmed', title: 'Table booked',
+        userId: row.userId, email: row.email, type: 'booking_confirmed', title: row.kind === 'TABLE' ? 'Table booked' : `${v.title} booked`,
         body: `${prettyDay(row.date)} · ${v.start}–${v.end} · ${v.where}`,
         emailSubject: `You're booked: ${prettyDay(row.date)} ${v.start}`,
-        emailText: `Hi ${row.name.split(' ')[0]},\n\nYour table is booked.\n\n${prettyDay(row.date)}, ${v.start}–${v.end}\n${v.where}\nBooking #RC-${row.code}\n\nFree cancellation until ${v.cancellation.freeUntilDate} ${v.cancellation.freeUntilTime}.\nShow the QR code in the app at the door to check in.\n\nSee you at ${settings().centerName}!`,
+        emailText: `Hi ${row.name.split(' ')[0]},\n\nYou're booked: ${v.title}${row.coachName ? ` with ${row.coachName}` : ''}.\n\n${prettyDay(row.date)}, ${v.start}–${v.end}\n${v.where}\nBooking #RC-${row.code}\n\nFree cancellation until ${v.cancellation.freeUntilDate} ${v.cancellation.freeUntilTime}.\nShow the QR code in the app at the door to check in.\n\nSee you at ${settings().centerName}!`,
       });
     }
     return row;
@@ -435,6 +491,9 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
   });
   payments.onPaid('SHARE', payment => stmts.markShare.run(iso(), payment.participantId));
 
+  // Lessons & classes plug in here: claimSeat when a class seat is confirmed, seatFreed when one is cancelled
+  const hooks = {};
+
   // ---------- views ----------
 
   const prettyDay = date => {
@@ -442,9 +501,16 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
     return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
   };
 
+  const LEVEL_LABEL = { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced', kids: 'Kids', all: 'All levels' };
+
   function summary(row) {
-    const where = row.areaName === 'Main hall' || !row.tableName ? (row.areaName || 'Club') : `${row.areaName} · ${row.tableName}`;
+    const where = row.kind === 'CLASS' ? 'Main hall'
+      : row.areaName === 'Main hall' || !row.tableName ? (row.areaName || 'Club') : `${row.areaName} · ${row.tableName}`;
+    const title = row.kind === 'LESSON' ? row.lessonName : row.kind === 'CLASS' ? row.classTitle : 'Table';
     return {
+      title, coach: row.coachName || null, level: row.classLevel ? LEVEL_LABEL[row.classLevel] || row.classLevel : null,
+      classSessionId: row.classSessionId, classKind: row.classKind || null,
+      coachId: row.coachId || null, lessonTypeId: row.lessonTypeId || null,
       code: row.code, kind: row.kind, date: row.date, start: formatHHMM(row.startMin), end: formatHHMM(row.endMin),
       duration: row.endMin - row.startMin, area: row.areaName, areaId: row.areaId, table: row.tableName, where,
       players: row.players, startsAt: startsAt(row), endsAt: endsAt(row),
@@ -461,7 +527,6 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
     return {
       ...summary(row),
       status: row.status,
-      title: 'Table',
       price: row.price,
       basePrice: row.basePrice,
       currency: settings().currency,
@@ -508,8 +573,14 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
       if (refundable && row.paymentMethod === 'CREDIT') {
         stmts.ledger.run(row.userId, 'TABLE_CREDIT', 1, `Refund: cancelled ${row.code}`, row.id, iso());
       }
+      if (refundable && row.paymentMethod === 'PACK') {
+        const pack = stmts.lastPackUsed.get(row.userId);
+        if (pack) stmts.packUse.run(-1, pack.id);
+        stmts.ledger.run(row.userId, 'LESSON_PACK', 1, `Refund: cancelled ${row.code}`, row.id, iso());
+      }
       stmts.cancel.run({ id: row.id, refundedAt: refundable ? iso() : null, now: iso() });
     })();
+    if (row.kind === 'CLASS' && hooks.seatFreed) hooks.seatFreed(row.classSessionId);
     const v = view(stmts.byId.get(row.id), { owner: true });
     notifier.notify({
       userId: row.userId, email: row.email, type: 'booking_cancelled', title: 'Booking cancelled',
@@ -621,6 +692,7 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
     availability, freeToday, areas: areasList, hold, release, holdView, quote, checkout, finalize,
     get, mine, cancel, reschedule, shareView, payShare, runJobs, expireHolds, view, planOf,
     byCode: code => stmts.byCode.get(code),
+    insertHoldRow, hooks, packLeft, LEVEL_LABEL,
   };
 }
 

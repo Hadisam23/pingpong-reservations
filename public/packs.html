@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Lesson packages · Rally Club</title>
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+</head>
+<body class="ui-app">
+  <div class="ui-shell">
+    <main class="ui-screen ui-screen--app" aria-labelledby="title" id="screen" aria-busy="true">
+      <div class="ui-screen__head">
+        <a class="ui-icon-btn" href="profile.html" aria-label="Back" id="back"><span data-ui-icon="back"></span></a>
+        <h1 class="ui-h2" id="title">Lesson packages</h1>
+      </div>
+
+      <div class="ui-credits">
+        <div class="ui-stat ui-stat--navy"><span class="ui-stat__label">Lessons left</span><span class="ui-stat__value"><span id="left">–</span> <span class="ui-stat__unit" id="of"></span></span></div>
+        <div class="ui-stat"><span class="ui-stat__label">Valid until</span><span class="ui-stat__value" style="font-size: var(--fs-num-sm)" id="until">–</span></div>
+      </div>
+
+      <p class="ui-body ui-muted">Buy lessons ahead and save. Pack credits work for every lesson type and are used automatically when you book.</p>
+
+      <form id="form" class="ui-form">
+        <div class="ui-radio-cards" id="offers" role="radiogroup" aria-label="Pack size">
+          <span class="ui-skel ui-skel--card" aria-hidden="true"></span>
+          <span class="ui-skel ui-skel--card" aria-hidden="true"></span>
+        </div>
+        <p class="ui-note"><span data-ui-icon="alert"></span><span id="note">Valid for 6 months from purchase. Packs are not refundable once a lesson is used.</span></p>
+      </form>
+    </main>
+
+    <div class="ui-dock">
+      <div class="ui-actionbar ui-actionbar--solo">
+        <button type="submit" form="form" class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block" id="buy" disabled><span data-ui-icon="lock"></span><span id="buyLabel">Buy pack</span></button>
+      </div>
+      <nav id="tabbar"></nav>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script src="ui.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+  <script>
+    let data = null;
+    const chosen = () => Number((document.querySelector('input[name="pack"]:checked') || {}).value);
+
+    function render() {
+      const c = data.current;
+      $('#left').textContent = c.left;
+      $('#of').textContent = c.total ? `of ${c.total}` : '';
+      $('#until').textContent = c.expiresAt ? new Date(c.expiresAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '–';
+      const pick = chosen() || data.offers[data.offers.length - 1].size;
+      $('#offers').innerHTML = data.offers.map(o => `
+        <label class="ui-radio-card">
+          ${o.size === 10 ? '<span class="ui-badge ui-badge--popular">Best value</span>' : ''}
+          <input type="radio" name="pack" value="${o.size}" ${o.size === pick ? 'checked' : ''}>
+          <span class="ui-radio-card__body"><span class="ui-radio-card__dot" aria-hidden="true"></span><span class="ui-radio-card__main">
+            <span class="ui-radio-card__head"><span class="ui-radio-card__name">${o.size} lessons</span>
+              <span class="ui-radio-card__price">${UI.esc(App.price(o.price, data.currency))}</span></span>
+            <span class="ui-radio-card__desc">${UI.esc(App.price(o.perLesson, data.currency))} per lesson · save ${o.savePct}%${data.memberDiscount ? ' with your member discount' : ''}</span>
+          </span></span>
+        </label>`).join('');
+      sync();
+      $('#screen').removeAttribute('aria-busy');
+    }
+
+    function sync() {
+      const o = data.offers.find(x => x.size === chosen());
+      $('#buy').disabled = !o;
+      $('#buyLabel').textContent = o ? `Pay ${App.price(o.price, data.currency)}` : 'Buy pack';
+    }
+    $('#offers').addEventListener('change', sync);
+
+    $('#form').addEventListener('submit', async e => {
+      e.preventDefault();
+      UI.setLoading($('#buy'), true);
+      try {
+        const res = await App.call('/api/lesson-packs', { method: 'POST', body: { size: chosen() } });
+        if (res.redirect) {
+          if (isNativeApp) window.open(res.redirect, '_blank'); else location.href = res.redirect;
+          return;
+        }
+        data = res;
+        render();
+        haptic();
+        UI.toast(`${chosen()} lessons added to your account.`, { kind: 'success' });
+      } catch (err) {
+        UI.toast(err.message, { kind: 'error' });
+      } finally {
+        UI.setLoading($('#buy'), false);
+      }
+    });
+
+    (async () => {
+      await Auth.requireUser();
+      App.tabbar('profile');
+      if (document.referrer.includes('coach.html')) $('#back').href = document.referrer;
+      try {
+        data = await App.call('/api/lesson-packs');
+        render();
+        if (App.param('paid')) UI.toast('Payment received. Your lessons are on the way.', { kind: 'success' });
+      } catch (err) {
+        UI.toast(err.message, { kind: 'error' });
+      }
+    })();
+  </script>
+</body>
+</html>

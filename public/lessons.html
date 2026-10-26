@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Lessons · Rally Club</title>
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+</head>
+<body class="ui-app">
+  <div class="ui-shell">
+    <main class="ui-screen ui-screen--app" aria-labelledby="title" id="screen" aria-busy="true">
+      <h1 class="ui-title" id="title">Lessons</h1>
+      <div id="tabs"></div>
+      <div class="ui-chips" id="levels"></div>
+
+      <div class="ui-list" id="list" role="tabpanel">
+        <span class="ui-skel ui-skel--card" aria-hidden="true"></span>
+        <span class="ui-skel ui-skel--card" aria-hidden="true"></span>
+        <span class="ui-skel ui-skel--card" aria-hidden="true"></span>
+      </div>
+
+      <div class="ui-empty ui-error" role="alert" id="loadError" hidden>
+        <span class="ui-empty__icon"><span data-ui-icon="alert"></span></span>
+        <span class="ui-empty__title">Couldn't load lessons</span>
+        <span class="ui-empty__text" id="loadErrorText"></span>
+        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" id="retry">Try again</button>
+      </div>
+    </main>
+    <nav id="tabbar"></nav>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script src="ui.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+  <script>
+    const state = { user: null, tab: App.param('tab') === 'group' ? 'group' : 'private', level: 'all', coaches: null, classes: null };
+
+    const loginFirst = () => { location.href = `login.html?next=${encodeURIComponent(`lessons.html?tab=${state.tab}`)}`; };
+
+    function coachCard(c) {
+      return `<a class="ui-card ui-coach" href="coach.html?id=${c.id}">
+        <span class="ui-coach__avatar" aria-hidden="true">${UI.esc(c.initials)}</span>
+        <span class="ui-coach__text">
+          <span class="ui-coach__name">${UI.esc(c.name)}</span>
+          <span class="ui-coach__line">${UI.esc(c.line)}</span>
+          <span class="ui-coach__next">${c.nextFree ? `Next free: ${UI.esc(c.nextFree.label)}` : 'Fully booked for 2 weeks'}</span>
+        </span>
+        ${UI.icon('forward')}
+      </a>`;
+    }
+
+    function classCard(g) {
+      const pct = Math.round(g.taken / g.capacity * 100);
+      const when = `${App.longDay(g.date)} · ${g.start} · ${g.duration} min`;
+      let spots = g.full ? 'Full · waitlist open' : `${g.spotsLeft} spot${g.spotsLeft === 1 ? '' : 's'} left`;
+      let action;
+      if (g.joined) {
+        action = '<span class="ui-badge ui-badge--success">You\'re in</span>';
+      } else if (g.waitlist && g.waitlist.offered) {
+        const until = new Date(g.waitlist.offerExpiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        spots = `<span class="ui-class__offer">A spot is yours until ${until}</span>`;
+        action = UI.button({ label: 'Join', size: 'sm', attrs: `data-join="${g.id}"` });
+      } else if (g.waitlist) {
+        spots = `On the waitlist · #${g.waitlist.position}`;
+        action = UI.button({ label: 'Leave waitlist', variant: 'secondary', size: 'sm', attrs: `data-leave="${g.id}"` });
+      } else if (g.full) {
+        action = UI.button({ label: 'Join waitlist', variant: 'secondary', size: 'sm', attrs: `data-wait="${g.id}"` });
+      } else {
+        action = UI.button({ label: 'Join', size: 'sm', attrs: `data-join="${g.id}"` });
+      }
+      return `<article class="ui-card ui-class" aria-label="${UI.esc(`${g.title}, ${when}`)}">
+        <div class="ui-class__head">
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span class="ui-class__title">${UI.esc(g.title)}</span>
+            <span class="ui-class__when">${UI.esc(when)}${g.coach ? ` · ${UI.esc(g.coach)}` : ''}</span>
+          </div>
+          <span class="ui-badge ui-badge--table">${UI.esc(g.levelLabel)}</span>
+        </div>
+        <div class="ui-class__foot">
+          <div class="ui-class__cap">
+            <div class="ui-meter${g.full ? ' ui-meter--full' : ''}" role="img" aria-label="${g.taken} of ${g.capacity} places taken"><span style="width: ${pct}%"></span></div>
+            <span class="ui-class__spots">${spots}</span>
+          </div>
+          ${action}
+        </div>
+      </article>`;
+    }
+
+    function render() {
+      const list = state.tab === 'private' ? state.coaches : state.classes;
+      if (!list) return;
+      $('#list').innerHTML = list.length ? list.map(state.tab === 'private' ? coachCard : classCard).join('') : `
+        <div class="ui-empty">
+          <span class="ui-empty__icon">${UI.icon(state.tab === 'private' ? 'coach' : 'users')}</span>
+          <span class="ui-empty__title">${state.tab === 'private' ? 'No coaches for this level' : 'No classes for this level'}</span>
+          <span class="ui-empty__text">Try another level, or check back next week.</span>
+        </div>`;
+      $('#screen').removeAttribute('aria-busy');
+    }
+
+    async function load() {
+      $('#loadError').hidden = true;
+      try {
+        const q = state.level === 'all' ? '' : `?level=${state.level}`;
+        if (state.tab === 'private') state.coaches = await App.call(`/api/coaches${q}`);
+        else state.classes = await App.call(`/api/classes${q}`);
+        render();
+      } catch (err) {
+        $('#list').innerHTML = '';
+        $('#loadErrorText').textContent = err.message;
+        $('#loadError').hidden = false;
+      }
+    }
+
+    $('#list').addEventListener('click', async e => {
+      const btn = e.target.closest('[data-join], [data-wait], [data-leave]');
+      if (!btn) return;
+      if (!state.user) return loginFirst();
+      UI.setLoading(btn, true);
+      try {
+        if (btn.dataset.join) {
+          const hold = await App.call(`/api/classes/${btn.dataset.join}/join`, { method: 'POST', body: {} });
+          location.href = `checkout.html?code=${hold.code}`;
+          return;
+        }
+        if (btn.dataset.wait) {
+          const g = await App.call(`/api/classes/${btn.dataset.wait}/waitlist`, { method: 'POST', body: {} });
+          UI.toast(`You're #${g.waitlist.position} on the waitlist. We'll tell you if a spot opens.`, { kind: 'success' });
+        } else {
+          await App.call(`/api/classes/${btn.dataset.leave}/waitlist`, { method: 'DELETE' });
+          UI.toast('You left the waitlist.');
+        }
+        await load();
+      } catch (err) {
+        UI.setLoading(btn, false);
+        UI.toast(err.message, { kind: 'error' });
+        if (err.status === 409) load();
+      }
+    });
+    $('#retry').addEventListener('click', load);
+
+    (async () => {
+      state.user = await Auth.me().catch(() => null);
+      App.tabbar('lessons', { guest: !state.user });
+      UI.segmented($('#tabs'), {
+        tabs: true, label: 'Lesson type', value: state.tab,
+        options: [{ value: 'private', label: 'Private lessons' }, { value: 'group', label: 'Group classes' }],
+        onChange: v => { state.tab = v; history.replaceState(null, '', `lessons.html?tab=${v}`); render(); if (!(v === 'private' ? state.coaches : state.classes)) load(); },
+      });
+      UI.chips($('#levels'), {
+        label: 'Level', value: state.level,
+        options: [{ value: 'all', label: 'All levels' }, { value: 'beginner', label: 'Beginner' }, { value: 'intermediate', label: 'Intermediate' }, { value: 'kids', label: 'Kids' }],
+        onChange: v => { state.level = v; state.coaches = state.classes = null; load(); },
+      });
+      load();
+    })();
+  </script>
+</body>
+</html>

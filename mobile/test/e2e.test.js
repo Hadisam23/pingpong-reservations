@@ -215,6 +215,61 @@ test('the time you picked gets taken by someone else → you are told and the ti
   await page.waitForSelector(`#slots .ui-slot[data-value="${time}"][disabled]`);
 });
 
+test('member: lessons — coach detail, book with a pack lesson; classes — join and waitlist', async () => {
+  const { page, errors } = await openPage('home.html');
+  await page.waitForSelector('#tabbar .ui-tab');
+  if (!(await page.textContent('#name')).includes('Noa')) await logIn(page);
+  await page.click('.ui-tab:has-text("Lessons")');
+  await page.waitForSelector('.ui-coach');
+  assert.equal(await page.locator('.ui-coach').count(), 3);
+  assert.match(await page.textContent('.ui-coach__next'), /^Next free: /);
+  await page.click('#levels [data-value="kids"]');
+  await page.waitForFunction(() => document.querySelectorAll('.ui-coach').length === 1);
+  await page.click('#levels [data-value="all"]');
+  await page.waitForFunction(() => document.querySelectorAll('.ui-coach').length === 3);
+  await page.screenshot({ path: path.join(SHOTS, `${browserName}-6-lessons.png`), fullPage: true });
+
+  await page.locator('.ui-coach', { hasText: 'Dana Peretz' }).click();
+  await page.waitForURL(/coach\.html/);
+  await page.waitForSelector('#slots .ui-slot, #slots.ui-slots-empty');
+  assert.equal(await page.locator('#types .ui-choice').count(), 3);
+  if (!(await page.locator('#slots .ui-slot').count())) {
+    await page.click('#otherDays');
+    await page.locator('#dates .ui-date:not([disabled])').nth(1).click();
+    await page.waitForSelector('#slots .ui-slot');
+  }
+  await page.locator('#slots .ui-slot').first().click();
+  assert.match(await page.textContent('#go'), /^Book \w{3} · \d\d:\d\d$/);
+  await noHorizontalScroll(page);
+  await page.screenshot({ path: path.join(SHOTS, `${browserName}-7-coach.png`), fullPage: true });
+  await page.click('#go');
+  await page.waitForURL(/checkout\.html/);
+  await page.waitForSelector('#payBar:not([hidden])');
+  assert.match(await page.textContent('#sumSub'), /with Dana Peretz/);
+  assert.equal(await page.isVisible('#players'), false);
+  assert.equal(await page.textContent('#payLabel'), 'Use 1 pack lesson & confirm');
+  await page.click('#pay');
+  await page.waitForURL(/confirmed\.html/);
+  await page.waitForSelector('#qr svg');
+
+  // Group classes: the full one offers the waitlist, an open one can be joined
+  await page.goto(`${appOrigin}/lessons.html?tab=group`);
+  await page.waitForSelector('.ui-class');
+  assert.ok(await page.locator('.ui-class', { hasText: 'On the waitlist · #1' }).count() >= 1, 'the demo player is first on the waitlist');
+  const open = page.locator('.ui-class:has([data-join])').first();
+  const title = (await open.locator('.ui-class__title').textContent()).trim();
+  await open.locator('[data-join]').click();
+  await page.waitForURL(/checkout\.html/);
+  await page.waitForSelector('#payBar:not([hidden])');
+  assert.match(await page.textContent('#sumTitle'), new RegExp(title.replace(/[()]/g, '.')));
+  await page.click('#pay');
+  await page.waitForURL(/confirmed\.html/);
+  await page.goto(`${appOrigin}/lessons.html?tab=group`);
+  await page.waitForSelector('.ui-class');
+  assert.equal(await page.locator('.ui-class', { hasText: title }).locator('.ui-badge--success').count(), 1);
+  assert.deepEqual(errors, []);
+});
+
 test('front desk on a phone: seeded day, type colors, check-in', async () => {
   const { page, errors } = await openPage('admin.html');
   await page.fill('#pw', PASSWORD);

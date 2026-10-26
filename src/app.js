@@ -10,6 +10,7 @@ const { createPayments } = require('./payments');
 const { createCheckIn } = require('./checkin');
 const { createNotifier } = require('./notify');
 const { createReservations } = require('./reservations');
+const { createLessons } = require('./lessons');
 const { toIcs } = require('./ics');
 
 // Origins the Capacitor app runs on (iOS: capacitor://localhost, Android: http(s)://localhost).
@@ -29,6 +30,7 @@ function createApp({
   const checkIn = createCheckIn(db);
   const notifier = createNotifier(db, { mailer, now });
   const reservations = createReservations(db, { service, pricing, payments, checkIn, notifier, now });
+  const lessons = createLessons(db, { service, reservations, payments, notifier, now });
   const app = express();
   // Async route handlers: send rejections to the error handler
   const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -157,6 +159,24 @@ function createApp({
     notifier.readAll(req.user.id);
     res.status(204).end();
   });
+  // ---------- lessons & classes (Phase 5) ----------
+
+  api.get('/coaches', (req, res) => res.json(lessons.coaches({ level: req.query.level })));
+  api.get('/coaches/:id', (req, res) => res.json(lessons.coachDetail(req.params.id)));
+  api.get('/coaches/:id/slots', (req, res) => res.json(lessons.coachSlots(req.params.id, req.query)));
+  api.post('/lessons/holds', requireUser, (req, res) => res.status(201).json(lessons.holdLesson(req.body, { user: req.user })));
+  api.get('/classes', optionalUser, (req, res) => res.json(lessons.classes({ level: req.query.level, user: req.user })));
+  api.post('/classes/:id/join', requireUser, (req, res) => res.status(201).json(lessons.join(req.params.id, { user: req.user })));
+  api.post('/classes/:id/waitlist', requireUser, (req, res) => res.status(201).json(lessons.joinWaitlist(req.params.id, { user: req.user })));
+  api.delete('/classes/:id/waitlist', requireUser, (req, res) => {
+    lessons.leaveWaitlist(req.params.id, { user: req.user });
+    res.status(204).end();
+  });
+  api.get('/lesson-packs', requireUser, (req, res) => res.json(lessons.packsView(req.user)));
+  api.post('/lesson-packs', requireUser, wrap(async (req, res) => {
+    res.json(await lessons.buyPack(req.body, { user: req.user, baseUrl: publicUrl(req) }));
+  }));
+
   api.get('/my/bookings', requireUser, (req, res) => res.json(reservations.mine(req.user)));
   api.get('/reservations/:code', optionalUser, wrap(async (req, res) => {
     const booking = reservations.get(req.params.code, who(req));
@@ -274,7 +294,11 @@ function createApp({
     res.status(500).json({ error: { code: 'server_error', message: 'Something went wrong. Please try again.' } });
   });
 
-  return { app, service, auth, mailer, db, payments, reservations, checkIn, runJobs: () => reservations.runJobs() };
+  const runJobs = async () => {
+    await reservations.runJobs();
+    lessons.runJobs();
+  };
+  return { app, service, auth, mailer, db, payments, reservations, lessons, checkIn, runJobs };
 }
 
 module.exports = { createApp };

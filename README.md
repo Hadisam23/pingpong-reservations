@@ -224,6 +224,28 @@ API: `GET /api/tables/availability`, `GET /api/tables/free-today`, `POST /api/ho
 `GET /api/reservations/:code/calendar.ics`, `GET|POST /api/shares/:token(/pay)`. Guests pass the
 booking's `token` instead of a session.
 
+## Lessons & classes (Phase 5)
+
+| Screen | What it does |
+|---|---|
+| `lessons.html` | Private lessons (coach cards with the next free time) / Group classes (capacity bar, Join, Join waitlist), level filter |
+| `coach.html` | Coach header, lesson type (Private 60 · Semi-private 60 · Video analysis 45), lesson-pack callout, free times for a day + See other days, Book |
+| `packs.html` | Buy a 5 or 10-lesson pack, lessons left and expiry |
+
+- A lesson slot needs the coach to be working (weekly hours, no time off, not already teaching)
+  **and** a free table; the table is reserved with the lesson. Lessons and classes need an account.
+- Lessons and class seats use the same hold → checkout → confirmed flow as tables. Payment:
+  lesson-pack credit (picked automatically), card, or included in the plan (Pro: 1 lesson a month;
+  Club and Pro: open play).
+- **Classes:** capacity is checked in the same transaction as the hold. When full you can join the
+  waitlist. A freed seat is offered to #1 for 2 hours (in-app + email), then moves to #2.
+- **Packs:** 5 lessons save 10%, 10 save 15% on the private-lesson price; members save another 10%.
+  Valid 6 months. Prices are placeholders.
+
+API: `GET /api/coaches`, `GET /api/coaches/:id`, `GET /api/coaches/:id/slots`, `POST /api/lessons/holds`,
+`GET /api/classes`, `POST /api/classes/:id/join`, `POST|DELETE /api/classes/:id/waitlist`,
+`GET|POST /api/lesson-packs`.
+
 ## Project layout
 
 ```

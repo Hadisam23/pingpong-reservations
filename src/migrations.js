@@ -376,6 +376,16 @@ const MIGRATIONS = [
       }
     },
   },
+  {
+    name: 'lessons and classes: lesson type copy, waitlist offers, pack purchases',
+    up(db) {
+      addColumn(db, 'lesson_types', 'description', 'TEXT');
+      addColumn(db, 'lesson_types', 'sortOrder', 'INTEGER NOT NULL DEFAULT 0');
+      addColumn(db, 'waitlist', 'offerExpiresAt', 'TEXT');     // a freed seat is held for #1 until then
+      addColumn(db, 'lesson_packs', 'paymentId', 'INTEGER REFERENCES payments(id)');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_bookings_coach ON bookings(coachId, date)');
+    },
+  },
 ];
 
 function migrate(db) {

@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const { parseHHMM, weekday, addDays, zonedToUtc } = require('./time');
 const { hashPassword } = require('./auth');
 const { DEFAULT_PLANS } = require('./plans');
+const { createCheckIn } = require('./checkin');
 const { DEFAULT_PRICE_RULES: PRICE_RULES } = require('./pricing');
 
 const DEMO_DOMAIN = 'rallyclub.test';
@@ -62,9 +63,9 @@ const COACHES = [
 ];
 
 const LESSON_TYPES = [
-  { name: 'Private lesson', durationMin: 60, maxStudents: 1, price: 180 },
-  { name: 'Semi-private lesson', durationMin: 60, maxStudents: 2, price: 240 },
-  { name: 'Video analysis', durationMin: 45, maxStudents: 1, price: 150 },
+  { name: 'Private lesson', durationMin: 60, maxStudents: 1, price: 180, description: '1-on-1 with the coach, table included' },
+  { name: 'Semi-private lesson', durationMin: 60, maxStudents: 2, price: 240, description: 'Bring a partner, split the price' },
+  { name: 'Video analysis', durationMin: 45, maxStudents: 1, price: 150, description: 'Recorded session + written feedback' },
 ];
 
 // A week of classes and open play. weekday 0 = Sunday. enrolled = seats taken.
@@ -186,8 +187,8 @@ function seedDemo(db, service, { seed = Date.now(), daysBack = 3, daysAhead = 7 
       coachIds[c.name] = coachId;
     }
 
-    const insertLessonType = db.prepare('INSERT INTO lesson_types (name, durationMin, maxStudents, price) VALUES (?, ?, ?, ?)');
-    const lessonTypeIds = LESSON_TYPES.map(l => insertLessonType.run(l.name, l.durationMin, l.maxStudents, l.price).lastInsertRowid);
+    const insertLessonType = db.prepare('INSERT INTO lesson_types (name, durationMin, maxStudents, price, description, sortOrder) VALUES (?, ?, ?, ?, ?, ?)');
+    const lessonTypeIds = LESSON_TYPES.map((l, i) => insertLessonType.run(l.name, l.durationMin, l.maxStudents, l.price, l.description, i).lastInsertRowid);
 
     // ---------- bookings ----------
     const insertBooking = db.prepare(`INSERT INTO bookings
@@ -333,6 +334,12 @@ function seedDemo(db, service, { seed = Date.now(), daysBack = 3, daysAhead = 7 
       db.prepare('INSERT INTO blocks (tableId, date, startMin, endMin, reason, createdAt) VALUES (?, ?, ?, ?, ?, ?)')
         .run(tableNo(4).id, blockDate, start, start + 180, 'Maintenance: new rubber & net', nowIso);
     }
+
+    // Signed check-in codes for every live booking (the QR on the check-in pass)
+    const sign = createCheckIn(db);
+    const live = db.prepare("SELECT id, userId, date, endMin FROM bookings WHERE status IN ('confirmed', 'checked_in')").all();
+    const setCode = db.prepare('UPDATE bookings SET checkInCode = ? WHERE id = ?');
+    for (const b of live) setCode.run(sign.sign({ bookingId: b.id, userId: b.userId, expiresAt: zonedToUtc(b.date, b.endMin, tz) }), b.id);
 
     const count = sql => db.prepare(sql).get().c;
     return {

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Coach · Rally Club</title>
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+</head>
+<body class="ui-app">
+  <div class="ui-shell">
+    <header class="ui-coach-head">
+      <div class="ui-coach-head__ring" aria-hidden="true"></div>
+      <a class="ui-icon-btn" href="lessons.html" aria-label="Back to lessons"><span data-ui-icon="back"></span></a>
+      <div class="ui-coach-head__who">
+        <span class="ui-coach-head__avatar" id="avatar" aria-hidden="true"></span>
+        <div style="display: flex; flex-direction: column; gap: var(--space-1)">
+          <h1 class="ui-coach-head__name" id="name"><span class="ui-skel ui-skel--title" style="width: 160px"></span></h1>
+          <span class="ui-coach-head__meta" id="meta">&nbsp;</span>
+        </div>
+      </div>
+      <div class="ui-tags" id="tags"></div>
+    </header>
+
+    <main class="ui-screen ui-screen--app ui-coach-body" aria-labelledby="name" id="screen" aria-busy="true">
+      <div class="ui-group">
+        <span class="ui-label" id="typeLabel">Lesson type</span>
+        <div class="ui-choices" id="types" role="radiogroup" aria-labelledby="typeLabel"></div>
+      </div>
+
+      <div class="ui-callout" id="packCallout">
+        <span class="ui-callout__icon" aria-hidden="true"><span data-ui-icon="gift"></span></span>
+        <span class="ui-callout__text" id="packText"><b>Save with a 5 or 10-lesson pack.</b> Credits are used automatically. <a href="packs.html">See packs</a></span>
+      </div>
+
+      <div class="ui-group">
+        <span class="ui-label" id="dayLabel">Available</span>
+        <div id="dates" hidden></div>
+        <div id="slots" aria-labelledby="dayLabel"></div>
+        <button type="button" class="ui-text-btn" id="otherDays" aria-expanded="false" aria-controls="dates">See other days</button>
+      </div>
+
+      <div class="ui-empty ui-error" role="alert" id="loadError" hidden>
+        <span class="ui-empty__icon"><span data-ui-icon="alert"></span></span>
+        <span class="ui-empty__title">Couldn't load this coach</span>
+        <span class="ui-empty__text" id="loadErrorText"></span>
+        <a class="ui-btn ui-btn--secondary ui-btn--sm" href="lessons.html">Back to lessons</a>
+      </div>
+    </main>
+
+    <div class="ui-dock">
+      <div class="ui-actionbar ui-actionbar--solo">
+        <button type="button" class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block" id="go" disabled>Pick a time</button>
+      </div>
+      <nav id="tabbar"></nav>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script src="ui.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+  <script>
+    const id = App.param('id');
+    const state = { user: null, coach: null, type: null, date: null, time: null, days: [] };
+
+    function renderTypes() {
+      const c = state.coach;
+      $('#types').innerHTML = c.lessonTypes.map(t => {
+        const on = t.id === state.type;
+        return `<button type="button" class="ui-choice" role="radio" aria-checked="${on}" tabindex="${on ? 0 : -1}" data-type="${t.id}">
+          <span class="ui-option__radio" aria-hidden="true"></span>
+          <span class="ui-option__text"><span class="ui-option__title">${UI.esc(t.short)} · ${t.durationMin} min</span><span class="ui-option__sub">${UI.esc(t.description || '')}</span></span>
+          <span class="ui-choice__price">${UI.esc(App.price(t.price, c.currency))}</span>
+        </button>`;
+      }).join('');
+    }
+
+    async function loadSlots() {
+      $('#slots').className = 'ui-slots';
+      $('#slots').innerHTML = Array.from({ length: 4 }, () => '<span class="ui-skel ui-skel--slot" aria-hidden="true"></span>').join('');
+      const q = new URLSearchParams({ lessonType: state.type, ...(state.date ? { date: state.date } : {}) });
+      const res = await App.call(`/api/coaches/${id}/slots?${q}`);
+      state.date = res.date;
+      state.days = res.days;
+      if (!res.slots.includes(state.time)) state.time = null;
+      $('#dayLabel').textContent = `${App.longDay(res.date)} · ${res.slots.length ? 'available' : 'fully booked'}`;
+      if (res.slots.length) {
+        UI.slots($('#slots'), {
+          label: 'Start time', value: state.time, slots: res.slots.map(time => ({ time })),
+          onChange: v => { state.time = v; renderGo(); },
+        });
+      } else {
+        $('#slots').className = 'ui-slots-empty';
+        $('#slots').innerHTML = '<b>No free times this day</b>See other days below.';
+      }
+      UI.dateStrip($('#dates'), {
+        cls: 'ui-datestrip--scroll', label: 'Day', value: res.date,
+        days: res.days.map(d => ({ value: d.date, dow: d.dow, num: d.num, disabled: !d.free, aria: `${App.longDay(d.date)}${d.free ? `, ${d.free} free times` : ', no free times'}` })),
+        onChange: v => { state.date = v; loadSlots(); },
+      });
+      renderGo();
+    }
+
+    function renderGo() {
+      const go = $('#go');
+      go.disabled = !state.time;
+      go.textContent = state.time ? `Book ${App.dayParts(state.date).dow} · ${state.time}` : 'Pick a time';
+    }
+
+    async function load() {
+      try {
+        state.coach = await App.call(`/api/coaches/${encodeURIComponent(id)}`);
+      } catch (err) {
+        $('#loadErrorText').textContent = err.message;
+        $('#loadError').hidden = false;
+        return;
+      }
+      const c = state.coach;
+      document.title = `${c.name} · Rally Club`;
+      $('#avatar').textContent = c.initials;
+      $('#name').textContent = c.name;
+      $('#meta').textContent = [c.certification, c.yearsCoaching ? `${c.yearsCoaching} years coaching` : null].filter(Boolean).join(' · ');
+      const levels = c.levels.includes('beginner') && c.levels.includes('intermediate') && c.levels.includes('advanced') ? ['All levels'] : c.levels.map(l => l[0].toUpperCase() + l.slice(1));
+      $('#tags').innerHTML = [...c.specialties, ...levels].map(t => `<span class="ui-tag-on-navy">${UI.esc(t)}</span>`).join('');
+      state.type = c.lessonTypes[0] && c.lessonTypes[0].id;
+      renderTypes();
+      await loadSlots();
+      $('#screen').removeAttribute('aria-busy');
+    }
+
+    $('#types').addEventListener('click', e => {
+      const b = e.target.closest('[data-type]');
+      if (!b || Number(b.dataset.type) === state.type) return;
+      state.type = Number(b.dataset.type);
+      renderTypes();
+      $(`#types [data-type="${state.type}"]`).focus();
+      loadSlots();
+    });
+    $('#types').addEventListener('keydown', e => {
+      const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+      if (!step) return;
+      e.preventDefault();
+      const ids = state.coach.lessonTypes.map(t => t.id);
+      state.type = ids[(ids.indexOf(state.type) + step + ids.length) % ids.length];
+      renderTypes();
+      $(`#types [data-type="${state.type}"]`).focus();
+      loadSlots();
+    });
+
+    $('#otherDays').addEventListener('click', () => {
+      const open = $('#dates').hidden;
+      $('#dates').hidden = !open;
+      $('#otherDays').setAttribute('aria-expanded', String(open));
+      $('#otherDays').textContent = open ? 'Hide other days' : 'See other days';
+    });
+
+    $('#go').addEventListener('click', async () => {
+      if (!state.user) { location.href = `login.html?next=${encodeURIComponent(`coach.html?id=${id}`)}`; return; }
+      UI.setLoading($('#go'), true);
+      try {
+        const hold = await App.call('/api/lessons/holds', { method: 'POST', body: { coachId: Number(id), lessonType: state.type, date: state.date, start: state.time } });
+        location.href = `checkout.html?code=${hold.code}`;
+      } catch (err) {
+        UI.setLoading($('#go'), false);
+        UI.toast(err.message, { kind: 'error' });
+        if (err.status === 409) loadSlots();
+      }
+    });
+
+    (async () => {
+      state.user = await Auth.me().catch(() => null);
+      App.tabbar('lessons', { guest: !state.user });
+      if (state.user) {
+        App.call('/api/my/bookings').then(m => {
+          if (m.credits.pack.left) {
+            $('#packText').innerHTML = `<b>${m.credits.pack.left} lesson${m.credits.pack.left === 1 ? '' : 's'} left in your pack.</b> They're used automatically when you book.`;
+          }
+        }).catch(() => {});
+      }
+      load();
+    })();
+  </script>
+</body>
+</html>

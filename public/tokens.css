@@ -38,7 +38,8 @@
   --table-line:    rgba(255, 255, 255, 0.10);  /* the "table line" across navy cards */
   --welcome-line:  rgba(255, 255, 255, 0.14);  /* Welcome: the table's centre line */
   --welcome-net:   rgba(255, 255, 255, 0.07);  /* Welcome: the net */
-  --on-navy-ring:  rgba(255, 255, 255, 0.08);  /* Booking confirmed: the ring behind the check */
+  --on-navy-ring:  rgba(255, 255, 255, 0.08);
+  --on-navy-border: rgba(255, 255, 255, 0.25); /* back button on a navy header */  /* Booking confirmed: the ring behind the check */
   --orange:   #F97316;   /* the ball: fills only */
   --orange-text: #C2410C;  /* orange text on white */
   --orange-200: #FED7AA;
@@ -155,6 +156,7 @@
   --radius-lg: 18px;      /* cards */
   --radius-hero: 22px;    /* hero cards */
   --radius-ticket: 24px;  /* ticket */
+  --radius-header: 28px;  /* navy header's bottom corners (coach detail) */
   --radius-full: 999px;
   --border-width: 1px;
   --border-control: 1.5px;

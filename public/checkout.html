@@ -103,6 +103,8 @@
     const bookAgain = () => {
       if (!state.hold) return 'book.html';
       const h = state.hold;
+      if (h.kind === 'LESSON') return `coach.html?id=${h.coachId}`;
+      if (h.kind === 'CLASS') return 'lessons.html?tab=group';
       return `book.html?${new URLSearchParams({ date: h.date, duration: h.duration, area: h.areaId, start: h.start })}`;
     };
 
@@ -141,8 +143,11 @@
       const p = App.dayParts(h.date);
       $('#dbDow').textContent = p.dow.toUpperCase();
       $('#dbNum').textContent = p.num;
-      $('#sumTitle').textContent = `Table · ${App.range(h.start, h.end)}`;
-      $('#sumSub').textContent = h.area === 'Main hall' ? 'Main hall · table assigned at check-in' : h.where;
+      const short = (h.title || '').replace(/ lesson$/i, '');
+      $('#sumTitle').textContent = `${h.kind === 'TABLE' ? 'Table' : short} · ${App.range(h.start, h.end)}`;
+      $('#sumSub').textContent = h.kind === 'LESSON' ? `with ${h.coach} · ${h.where}`
+        : h.kind === 'CLASS' ? `${h.level} · group ${h.classKind === 'OPEN_PLAY' ? 'session' : 'class'}`
+        : h.area === 'Main hall' ? 'Main hall · table assigned at check-in' : h.where;
       $('#back').href = $('#edit').href = bookAgain();
       $('#edit').setAttribute('aria-label', 'Edit date and time');
 
@@ -155,6 +160,8 @@
       }
       $('#splitRow').hidden = !state.user;
       ['summary', 'players', 'methods', 'promoField', 'lines', 'policy', 'payBar'].forEach(id => { $(`#${id}`).hidden = false; });
+      $('#players').hidden = h.maxPlayers < 2;
+      App.tabbar(h.kind === 'TABLE' ? 'tables' : 'lessons', { guest: !state.user });
       ['skel1', 'skel2'].forEach(id => { $(`#${id}`).hidden = true; });
       $('#screen').removeAttribute('aria-busy');
 
@@ -206,6 +213,7 @@
       $('#lines').innerHTML = rows.join('');
 
       $('#payLabel').textContent = q.method === 'CREDIT' ? 'Use 1 credit & confirm'
+        : q.method === 'PACK' ? 'Use 1 pack lesson & confirm'
         : q.yourShare > 0 ? `Pay ${fmt(q.yourShare)} & confirm` : 'Confirm booking';
       renderPlayers();
     }
