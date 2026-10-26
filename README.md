@@ -1,4 +1,4 @@
-# 🏓 Ping Pong Center — Reservations
+# Ping Pong Center — Reservations
 
 Online table booking for a ping pong center: customers book from their phone without creating an
 account, and staff run the day from a front-desk panel. Ships as a website **and** a Capacitor iOS
@@ -78,6 +78,27 @@ release builds, use your deployed HTTPS server.
 The e2e test needs the root dependencies too (`npm install` in the repo root).
 
 Five tables and default opening hours/prices are created on first start. Change them in **Admin → Settings**.
+
+## Design system
+
+The UI is plain HTML/CSS/JS with one design system:
+
+- **`public/tokens.css`** holds every colour, type size, spacing step, radius, shadow and timing. Change the
+  look here. Nothing else in `public/` contains a raw colour.
+  - Palette: navy `--navy-900` #0B1F3A (primary) and `--navy-700` #1E3A8A (hover/active), white, greys
+    `--gray-50/200/500`, and one accent, the ball orange `--orange-500` #F97316. Orange is used for marks
+    only and never for text; orange text uses `--orange-700`. All text pairs pass WCAG AA.
+  - Type: Inter (self-hosted in `public/fonts/`, OFL licence). Scale 12 / 14 / 16 / 20 / 24 / 32 / 40.
+  - Spacing: 4 / 8 / 12 / 16 / 24 / 32 / 48 (`--space-1` … `--space-7`).
+- **`public/styles.css`** holds the components, all built from tokens: header, card, choices, forms,
+  alerts, badges, the booking grid, the ticket, the front-desk timeline and the dialog.
+- **Button component**: `class="btn btn--{primary|secondary|ghost|danger} btn--{sm|md|lg}"`, plus `btn--block` and
+  `btn--icon`. It has hover, pressed, focus and disabled states. For the loading state, call `setLoading(button, true|false)`
+  from `public/common.js`: the spinner keeps the button's width. Icons: `<span data-icon="check"></span>` or
+  `icon('check')`.
+- Session types are told apart by mark (fill and edge), not by colour: classes `tm-0` … `tm-4`.
+
+The UI was audited with the taste-skill (`.claude/skills/taste-skill`); its output goes to the ignored `.taste-skill/`.
 
 ## API
 

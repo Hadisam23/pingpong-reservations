@@ -4,46 +4,60 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>My Booking</title>
+  <link rel="preload" href="fonts/inter-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="container" style="max-width:480px">
-    <header class="top">
-      <div class="logo" aria-hidden="true">🏓</div>
-      <div>
-        <h1>Your booking</h1>
-        <p id="centerName">View or cancel</p>
+  <header class="app-header">
+    <div class="app-header__inner">
+      <a class="brand" href="index.html"><span data-icon="brand"></span><span class="brand__name" id="centerName">Ping Pong Center</span></a>
+      <div class="app-header__end">
+        <a class="btn btn--primary btn--sm" href="index.html">Book a table</a>
       </div>
-    </header>
-
-    <div class="card hidden" id="lookup">
-      <h2>Find your booking</h2>
-      <div id="lookupError" class="alert err hidden"></div>
-      <form id="lookupForm" novalidate>
-        <div class="field">
-          <label for="code">Booking code</label>
-          <input id="code" autocomplete="off" autocapitalize="characters" maxlength="6" placeholder="K7QX2M" style="text-transform:uppercase;letter-spacing:.15em">
-        </div>
-        <div class="field">
-          <label for="phone">Phone number used for the booking</label>
-          <input id="phone" type="tel" inputmode="tel" autocomplete="tel">
-        </div>
-        <button class="btn block" type="submit" id="lookupBtn">Find booking</button>
-      </form>
     </div>
+  </header>
 
-    <div class="card hidden" id="view">
-      <div id="viewMsg" class="alert hidden"></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <h2 style="margin:0">Booking <span id="vCode" style="font-family:ui-monospace,monospace;letter-spacing:.08em"></span></h2>
-        <span class="badge" id="vStatus"></span>
+  <main class="page page--narrow">
+    <section class="hidden" id="lookup" aria-labelledby="lookupTitle">
+      <div class="page-head">
+        <div class="page-head__text">
+          <h1 id="lookupTitle">Find your booking</h1>
+          <p class="lede">Enter the code from your confirmation and the phone number you booked with.</p>
+        </div>
       </div>
-      <dl class="summary" id="vSummary"></dl>
-      <div id="cancelArea"></div>
-    </div>
+      <div class="card">
+        <div id="lookupError" class="alert err hidden" role="alert"></div>
+        <form id="lookupForm" novalidate>
+          <div class="field">
+            <label for="code">Booking code</label>
+            <input id="code" class="code-input" autocomplete="off" autocapitalize="characters" maxlength="6" placeholder="K7QX2M">
+          </div>
+          <div class="field">
+            <label for="phone">Phone number</label>
+            <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="050-123-4567">
+          </div>
+          <button class="btn btn--primary btn--lg btn--block" type="submit" id="lookupBtn">Find booking</button>
+        </form>
+      </div>
+    </section>
 
-    <p class="muted small" style="text-align:center"><a href="index.html">Book a table</a></p>
-  </div>
+    <section class="hidden" id="view" aria-labelledby="viewTitle">
+      <h1 class="sr-only" id="viewTitle">Your booking</h1>
+      <div id="viewMsg" class="alert hidden" role="status"></div>
+      <div class="ticket">
+        <div class="ticket__top">
+          <div class="ticket__row"><span>Booking code</span><span class="badge" id="vStatus"></span></div>
+          <div class="ticket__code" id="vCode"></div>
+          <div class="ticket__time" id="vTime"></div>
+        </div>
+        <div class="ticket__body">
+          <dl class="summary" id="vSummary"></dl>
+          <div id="cancelArea"></div>
+        </div>
+      </div>
+    </section>
+  </main>
 
   <script src="config.js"></script>
   <script src="common.js"></script>
@@ -60,22 +74,22 @@
       const badge = $('#vStatus');
       badge.className = `badge ${b.status}`;
       badge.textContent = statusLabel(b.status);
+      $('#vTime').innerHTML = `<span class="ball"></span>${esc(b.start)}–${esc(b.end)}`;
       $('#vSummary').innerHTML = `
         <dt>Day</dt><dd>${esc(prettyDate(b.date))}</dd>
-        <dt>Time</dt><dd>${esc(b.start)} – ${esc(b.end)}</dd>
         <dt>Table</dt><dd>${esc(b.table.name)}</dd>
         <dt>Session</dt><dd>${esc(b.typeLabel)}</dd>
         <dt>Name</dt><dd>${esc(b.name)}</dd>
         <dt>Players</dt><dd>${b.players}</dd>
-        <dt>Price</dt><dd>${esc(money(b.price, b.currency))}</dd>`;
+        <dt>Price, at the desk</dt><dd class="price">${esc(money(b.price, b.currency))}</dd>`;
 
       const area = $('#cancelArea');
       if (b.canCancel) {
-        area.innerHTML = `<button class="btn danger block" id="cancelBtn" type="button">Cancel booking</button>
-          <p class="muted small" style="margin-top:8px">Online cancellation closes ${b.cancelCutoffMinutes} minutes before the start.</p>`;
+        area.innerHTML = `<button class="btn btn--danger btn--lg btn--block" id="cancelBtn" type="button">Cancel booking</button>
+          <p class="muted xsmall mt-2">Online cancellation closes ${b.cancelCutoffMinutes} minutes before the start.</p>`;
         $('#cancelBtn').onclick = cancel;
       } else if (b.status === 'confirmed') {
-        area.innerHTML = `<p class="muted small">It's too close to the start time to cancel online. Please call the center.</p>`;
+        area.innerHTML = `<p class="empty">It's too close to the start time to cancel online. Please call the center.</p>`;
       } else {
         area.innerHTML = '';
       }
@@ -91,13 +105,13 @@
     async function cancel() {
       if (!confirm('Cancel this booking? The table will be released to other players.')) return;
       const btn = $('#cancelBtn');
-      btn.disabled = true;
+      setLoading(btn, true);
       try {
         booking = await api(`/api/bookings/${encodeURIComponent(booking.code)}/cancel`, { method: 'POST', body: creds });
         render();
         message('Your booking was cancelled.', 'ok');
       } catch (err) {
-        btn.disabled = false;
+        setLoading(btn, false);
         message(err.message, 'err');
       }
     }
@@ -113,14 +127,14 @@
       e.preventDefault();
       const err = $('#lookupError');
       err.classList.add('hidden');
-      $('#lookupBtn').disabled = true;
+      setLoading($('#lookupBtn'), true);
       try {
         await load($('#code').value.trim().toUpperCase(), { phone: $('#phone').value });
       } catch (ex) {
         err.textContent = ex.message;
         err.classList.remove('hidden');
       } finally {
-        $('#lookupBtn').disabled = false;
+        setLoading($('#lookupBtn'), false);
       }
     });
 

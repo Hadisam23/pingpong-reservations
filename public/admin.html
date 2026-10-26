@@ -4,93 +4,70 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Front Desk</title>
+  <link rel="preload" href="fonts/inter-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
   <link rel="stylesheet" href="styles.css">
-  <style>
-    .tabs { display: flex; gap: 6px; }
-    .tabs button { font: inherit; border: 1px solid var(--border); background: var(--card); color: var(--text); padding: 7px 14px; border-radius: 999px; cursor: pointer; }
-    .tabs button.on { background: var(--text); color: var(--bg); border-color: var(--text); }
-    .daynav { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
-    .daynav input { width: auto; }
-    .daynav h2 { margin: 0 8px 0 0; font-size: 17px; }
-    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
-    .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
-    .stat .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
-    .stat .k { font-size: 12px; color: var(--muted); }
-    .tl { display: grid; gap: 3px; grid-auto-rows: 26px; min-width: 100%; }
-    .tl .th { font-size: 12px; font-weight: 600; color: var(--muted); text-align: center; align-self: end; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .tl .time { font-size: 11px; color: var(--muted); text-align: right; padding-right: 6px; font-variant-numeric: tabular-nums; }
-    .tl .slot { border: 1px dashed var(--border); border-radius: 6px; background: transparent; cursor: pointer; }
-    .tl .slot:hover { background: var(--accent-soft); border-color: var(--accent); }
-    .tl .bk { border-radius: 7px; padding: 3px 6px; font-size: 12px; line-height: 1.25; overflow: hidden; cursor: pointer; text-align: left; font-family: inherit;
-      border: 1px solid var(--accent); background: var(--accent-soft); color: var(--text); z-index: 1; }
-    .tl .bk { border-left: 4px solid var(--tc, var(--accent)); }
-    .tl .bk.checked_in { background: var(--ok-soft); }
-    .typebar { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 14px; }
-    .type-row { display: grid; grid-template-columns: 1fr 2fr 80px 80px auto; gap: 6px; align-items: center; margin-bottom: 6px; }
-    .type-row input { padding: 7px 8px; }
-    @media (max-width: 520px) { .type-row { grid-template-columns: 1fr 1fr; } }
-    .tl .bk strong { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .tl .blk { border-radius: 7px; padding: 3px 6px; font-size: 11px; color: var(--muted); z-index: 1; overflow: hidden;
-      background: repeating-linear-gradient(135deg, var(--cell-busy) 0 6px, transparent 6px 10px); border: 1px solid var(--border); }
-    .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    .hours-row { display: grid; grid-template-columns: 52px 86px 1fr 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
-    .hours-row input[type=checkbox], .inline input[type=checkbox] { width: auto; }
-    .inline { display: flex; gap: 10px; flex-wrap: wrap; }
-    .inline label { display: flex; align-items: center; gap: 5px; font-weight: 400; }
-    .dialog { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: grid; place-items: center; padding: 16px; z-index: 10; }
-    .dialog .card { width: 100%; max-width: 420px; margin: 0; }
-    @media (max-width: 760px) { .cols2 { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(2, 1fr); } }
-  </style>
 </head>
 <body>
-  <div class="container wide">
-    <header class="top">
-      <div class="logo" aria-hidden="true">🏓</div>
-      <div>
-        <h1>Front desk</h1>
-        <p id="centerName">Admin</p>
-      </div>
-      <div class="spacer"></div>
-      <nav class="tabs hidden" id="tabs">
+  <header class="app-header">
+    <div class="app-header__inner">
+      <a class="brand" href="admin.html"><span data-icon="brand"></span><span class="brand__name" id="centerName">Ping Pong Center</span><span class="brand__scope">Front desk</span></a>
+      <nav class="app-header__end tabs hidden" id="tabs" aria-label="Front desk">
         <button type="button" data-tab="day" class="on">Day</button>
         <button type="button" data-tab="settings">Settings</button>
       </nav>
-    </header>
-
-    <!-- login -->
-    <div class="card hidden" id="login" style="max-width:380px;margin:40px auto">
-      <h2>Staff sign in</h2>
-      <div id="loginError" class="alert err hidden"></div>
-      <form id="loginForm">
-        <div class="field"><label for="pw">Admin password</label><input id="pw" type="password" autocomplete="current-password"></div>
-        <button class="btn block" type="submit">Sign in</button>
-      </form>
     </div>
+  </header>
+
+  <main class="page">
+    <!-- login -->
+    <section class="hidden page--narrow" id="login" aria-labelledby="loginTitle">
+      <div class="page-head"><div class="page-head__text">
+        <h1 id="loginTitle">Staff sign in</h1>
+        <p class="lede">The front desk runs the day: check-ins, walk-ins and blocked tables.</p>
+      </div></div>
+      <div class="card">
+        <div id="loginError" class="alert err hidden" role="alert"></div>
+        <form id="loginForm">
+          <div class="field"><label for="pw">Admin password</label><input id="pw" type="password" autocomplete="current-password"></div>
+          <button class="btn btn--primary btn--lg btn--block" type="submit" id="loginBtn">Sign in</button>
+        </form>
+      </div>
+    </section>
 
     <!-- day -->
-    <section id="tab-day" class="hidden">
-      <div class="daynav">
-        <h2 id="dayTitle"></h2>
-        <button class="btn sm ghost" type="button" id="prevDay" aria-label="Previous day">‹</button>
-        <input type="date" id="dayPick">
-        <button class="btn sm ghost" type="button" id="nextDay" aria-label="Next day">›</button>
-        <button class="btn sm ghost" type="button" id="todayBtn">Today</button>
-        <button class="btn sm ghost" type="button" id="refresh">Refresh</button>
+    <section id="tab-day" class="hidden" aria-labelledby="dayTitle">
+      <div class="page-head">
+        <div class="page-head__text">
+          <h1 id="dayTitle"></h1>
+          <p class="lede" id="dayFinding"></p>
+        </div>
+        <div class="daynav">
+          <button class="btn btn--secondary btn--sm btn--icon" type="button" id="prevDay" aria-label="Previous day"><span data-icon="chevron-left"></span></button>
+          <label class="sr-only" for="dayPick">Date</label>
+          <input type="date" id="dayPick">
+          <button class="btn btn--secondary btn--sm btn--icon" type="button" id="nextDay" aria-label="Next day"><span data-icon="chevron-right"></span></button>
+          <button class="btn btn--secondary btn--sm" type="button" id="todayBtn">Today</button>
+          <button class="btn btn--ghost btn--sm" type="button" id="refresh"><span data-icon="refresh"></span>Refresh</button>
+        </div>
       </div>
-      <div id="dayError" class="alert err hidden"></div>
-      <div class="stats" id="stats"></div>
-      <div class="typebar" id="typebar"></div>
+      <div id="dayError" class="alert err hidden" role="alert"></div>
+      <div class="kpis" id="stats"></div>
 
-      <div class="card">
-        <h2>Timeline <span class="muted small" style="font-weight:400">· tap an empty slot for a walk-in, tap a booking for actions</span></h2>
-        <div id="closedMsg" class="muted hidden">Closed on this day.</div>
+      <section class="card" aria-labelledby="tlTitle">
+        <div class="card__head">
+          <h2 class="card__title" id="tlTitle">Tables</h2>
+          <div class="typebar" id="typebar"></div>
+        </div>
+        <div id="closedMsg" class="empty hidden">Closed on this day.</div>
         <div class="grid-wrap"><div class="tl" id="timeline"></div></div>
-      </div>
+        <p class="muted xsmall mt-3">Tap an empty slot to start a walk-in. Tap a booking to check it in.</p>
+      </section>
 
-      <div class="cols2">
-        <div class="card">
-          <h2>Walk-in / phone booking</h2>
-          <div id="walkMsg" class="alert hidden"></div>
+      <div class="cols2 mt-4">
+        <section class="card" aria-labelledby="walkTitle">
+          <div class="card__head"><h2 class="card__title" id="walkTitle">Walk-in or phone booking</h2></div>
+          <div id="walkMsg" class="alert hidden" role="status"></div>
           <form id="walkForm" novalidate>
             <div class="row3">
               <div class="field"><label for="wTable">Table</label><select id="wTable"></select></div>
@@ -99,112 +76,121 @@
             </div>
             <div class="row3">
               <div class="field"><label for="wName">Name</label><input id="wName"></div>
-              <div class="field"><label for="wPhone">Phone (optional)</label><input id="wPhone" type="tel"></div>
+              <div class="field"><label for="wPhone">Phone, optional</label><input id="wPhone" type="tel"></div>
               <div class="field"><label for="wPlayers">Players</label><input id="wPlayers" type="number" min="1" value="2"></div>
             </div>
             <div class="field"><label for="wType">Session</label><select id="wType"></select></div>
-            <button class="btn" type="submit">Add booking</button>
+            <button class="btn btn--primary btn--md" type="submit" id="walkBtn"><span data-icon="plus"></span>Add booking</button>
           </form>
-        </div>
+        </section>
 
-        <div class="card">
-          <h2>Block time</h2>
-          <div id="blockMsg" class="alert hidden"></div>
+        <section class="card" aria-labelledby="blockTitle">
+          <div class="card__head"><h2 class="card__title" id="blockTitle">Block time</h2></div>
+          <div id="blockMsg" class="alert hidden" role="status"></div>
           <form id="blockForm" novalidate>
             <div class="row3">
               <div class="field"><label for="bTable">Table</label><select id="bTable"></select></div>
               <div class="field"><label for="bStart">From</label><input id="bStart" type="time" step="900"></div>
               <div class="field"><label for="bEnd">To</label><input id="bEnd" type="time" step="900"></div>
             </div>
-            <div class="field"><label for="bReason">Reason</label><input id="bReason" placeholder="Maintenance, tournament, private event…"></div>
-            <button class="btn" type="submit">Block</button>
+            <div class="field"><label for="bReason">Reason</label><input id="bReason" placeholder="Maintenance, tournament, private event"></div>
+            <button class="btn btn--secondary btn--md" type="submit" id="blockBtn">Block time</button>
           </form>
-          <ul class="list" id="blockList" style="margin-top:10px"></ul>
-        </div>
+          <ul class="list mt-4" id="blockList"></ul>
+        </section>
       </div>
 
-      <div class="card">
-        <h2>All bookings this day</h2>
+      <section class="card mt-4" aria-labelledby="listTitle">
+        <div class="card__head"><h2 class="card__title" id="listTitle">All bookings this day</h2><span class="card__note" id="listCount"></span></div>
         <ul class="list" id="bookingList"></ul>
-      </div>
+      </section>
     </section>
 
     <!-- settings -->
-    <section id="tab-settings" class="hidden">
+    <section id="tab-settings" class="hidden" aria-labelledby="settingsTitle">
+      <div class="page-head">
+        <div class="page-head__text">
+          <h1 id="settingsTitle">Settings</h1>
+          <p class="lede">Hours, prices, sessions and tables. Changes apply to new bookings.</p>
+        </div>
+        <button class="btn btn--primary btn--md" type="button" id="saveSettings"><span data-icon="check"></span>Save settings</button>
+      </div>
+      <div id="settingsMsg" class="alert hidden" role="status"></div>
       <div class="cols2">
         <div>
-          <div class="card">
-            <h2>Center</h2>
+          <section class="card" aria-labelledby="sCenterTitle">
+            <div class="card__head"><h2 class="card__title" id="sCenterTitle">Center</h2></div>
             <div class="field"><label for="sName">Name</label><input id="sName"></div>
             <div class="row">
-              <div class="field"><label for="sTz">Time zone</label><input id="sTz"></div>
-              <div class="field"><label for="sCur">Currency</label><input id="sCur" maxlength="3"></div>
+              <div class="field mb-0"><label for="sTz">Time zone</label><input id="sTz"></div>
+              <div class="field mb-0"><label for="sCur">Currency</label><input id="sCur" maxlength="3"></div>
             </div>
-          </div>
-          <div class="card">
-            <h2>Opening hours</h2>
+          </section>
+          <section class="card" aria-labelledby="sHoursTitle">
+            <div class="card__head"><h2 class="card__title" id="sHoursTitle">Opening hours</h2></div>
             <div id="hoursRows"></div>
-          </div>
-          <div class="card">
-            <h2>Tables</h2>
-            <div id="tableMsg" class="alert hidden"></div>
+          </section>
+          <section class="card" aria-labelledby="sTablesTitle">
+            <div class="card__head"><h2 class="card__title" id="sTablesTitle">Tables</h2></div>
+            <div id="tableMsg" class="alert hidden" role="status"></div>
             <ul class="list" id="tableList"></ul>
-            <form id="addTableForm" class="copy-line" style="margin-top:10px">
+            <form id="addTableForm" class="copy-line mt-4">
+              <label class="sr-only" for="newTable">New table name</label>
               <input id="newTable" placeholder="New table name">
-              <button class="btn" type="submit">Add</button>
+              <button class="btn btn--secondary btn--md" type="submit"><span data-icon="plus"></span>Add</button>
             </form>
-          </div>
+          </section>
         </div>
         <div>
-          <div class="card">
-            <h2>Prices (per hour)</h2>
+          <section class="card" aria-labelledby="sPriceTitle">
+            <div class="card__head"><h2 class="card__title" id="sPriceTitle">Prices per hour</h2></div>
             <div class="row">
               <div class="field"><label for="pOff">Off-peak</label><input id="pOff" type="number" min="0" step="1"></div>
               <div class="field"><label for="pPeak">Peak</label><input id="pPeak" type="number" min="0" step="1"></div>
             </div>
-            <div class="field"><label for="pStart">Peak starts at (every day)</label><input id="pStart" type="time" step="900"></div>
-            <label>Peak all day on</label>
+            <div class="field"><label for="pStart">Peak starts at, every day</label><input id="pStart" type="time" step="900"></div>
+            <span class="label">Peak all day on</span>
             <div class="inline" id="peakDays"></div>
-          </div>
-          <div class="card">
-            <h2>Session types</h2>
-            <p class="muted small" style="margin-bottom:8px">id · label · extra per hour · min minutes</p>
+          </section>
+          <section class="card" aria-labelledby="sTypesTitle">
+            <div class="card__head"><h2 class="card__title" id="sTypesTitle">Session types</h2><span class="card__note">id · label · extra per hour · min minutes</span></div>
             <div id="typeRows"></div>
-            <button class="btn sm ghost" type="button" id="addType">Add type</button>
-          </div>
-          <div class="card">
-            <h2>Booking rules</h2>
+            <button class="btn btn--ghost btn--sm mt-2" type="button" id="addType"><span data-icon="plus"></span>Add type</button>
+          </section>
+          <section class="card" aria-labelledby="sRulesTitle">
+            <div class="card__head"><h2 class="card__title" id="sRulesTitle">Booking rules</h2></div>
             <div class="row">
-              <div class="field"><label for="rSlot">Slot size (min)</label>
+              <div class="field"><label for="rSlot">Slot size, minutes</label>
                 <select id="rSlot"><option>15</option><option>30</option><option>60</option></select></div>
-              <div class="field"><label for="rDur">Durations (min, comma separated)</label><input id="rDur"></div>
+              <div class="field"><label for="rDur">Lengths, minutes</label><input id="rDur"></div>
             </div>
             <div class="row">
-              <div class="field"><label for="rAdv">Book up to (days ahead)</label><input id="rAdv" type="number" min="0"></div>
-              <div class="field"><label for="rNotice">Min notice (min)</label><input id="rNotice" type="number" min="0"></div>
+              <div class="field"><label for="rAdv">Book up to, days ahead</label><input id="rAdv" type="number" min="0"></div>
+              <div class="field"><label for="rNotice">Minimum notice, minutes</label><input id="rNotice" type="number" min="0"></div>
             </div>
             <div class="row">
-              <div class="field"><label for="rCancel">Online cancel until (min before)</label><input id="rCancel" type="number" min="0"></div>
-              <div class="field"><label for="rPhone">Max upcoming per phone</label><input id="rPhone" type="number" min="1"></div>
+              <div class="field"><label for="rCancel">Online cancel until, minutes before</label><input id="rCancel" type="number" min="0"></div>
+              <div class="field"><label for="rPhone">Upcoming bookings per phone</label><input id="rPhone" type="number" min="1"></div>
             </div>
-            <div class="field"><label for="rPlayers">Max players per table</label><input id="rPlayers" type="number" min="1" max="8"></div>
-          </div>
-          <div id="settingsMsg" class="alert hidden"></div>
-          <button class="btn block" type="button" id="saveSettings">Save settings</button>
+            <div class="field mb-0"><label for="rPlayers">Players per table</label><input id="rPlayers" type="number" min="1" max="8"></div>
+          </section>
         </div>
       </div>
     </section>
-  </div>
+  </main>
 
-  <div class="dialog hidden" id="dialog">
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <h2 style="margin:0" id="dTitle"></h2>
-        <span class="badge" id="dStatus"></span>
+  <div class="dialog hidden" id="dialog" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+    <div class="ticket dialog__panel">
+      <div class="ticket__top">
+        <div class="ticket__row"><span id="dCode"></span><span class="badge" id="dStatus"></span></div>
+        <h2 class="ticket__name" id="dTitle"></h2>
+        <div class="ticket__time" id="dTime"></div>
       </div>
-      <div id="dMsg" class="alert err hidden"></div>
-      <dl class="summary" id="dSummary"></dl>
-      <div class="btn-row" id="dActions"></div>
+      <div class="ticket__body">
+        <div id="dMsg" class="alert err hidden" role="alert"></div>
+        <dl class="summary" id="dSummary"></dl>
+        <div class="cluster" id="dActions"></div>
+      </div>
     </div>
   </div>
 
@@ -247,11 +233,14 @@
     $('#loginForm').addEventListener('submit', async e => {
       e.preventDefault();
       password = $('#pw').value;
+      setLoading($('#loginBtn'), true);
       try {
         await start();
         session.set(password);
       } catch (err) {
         flash('#loginError', err.message);
+      } finally {
+        setLoading($('#loginBtn'), false);
       }
     });
 
@@ -290,17 +279,19 @@
 
       const active = day.bookings.filter(b => b.status === 'confirmed' || b.status === 'checked_in');
       const revenue = day.bookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + b.price, 0);
+      const checkedIn = day.bookings.filter(b => b.status === 'checked_in').length;
       $('#stats').innerHTML = [
-        ['Bookings', active.length],
-        ['Checked in', day.bookings.filter(b => b.status === 'checked_in').length],
-        ['No-shows', day.bookings.filter(b => b.status === 'no_show').length],
-        ['Expected', money(revenue, config.currency)],
-      ].map(([k, v]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${k}</div></div>`).join('');
+        ['Bookings', `${active.length}`],
+        ['Checked in', `${checkedIn}<span class="of"> of ${active.length}</span>`],
+        ['No-shows', `${day.bookings.filter(b => b.status === 'no_show').length}`],
+        ['Expected takings', esc(money(revenue, config.currency))],
+      ].map(([k, v]) => `<div class="kpi"><div class="kpi__label">${k}</div><div class="kpi__value">${v}</div></div>`).join('');
+      $('#dayFinding').textContent = dayFinding(active);
 
       const types = config.bookingTypes;
       $('#typebar').innerHTML = types.map((t, i) => {
         const n = active.filter(b => b.type === t.id).length;
-        return `<span class="tag tc-${i % 5}">${esc(t.label)}: ${n}</span>`;
+        return `<span class="tag tm-${i % 5}">${esc(t.label)} <span class="num">${n}</span></span>`;
       }).join('');
       const keepType = $('#wType').value;
       $('#wType').innerHTML = types.map(t => `<option value="${esc(t.id)}">${esc(t.label)}</option>`).join('');
@@ -316,18 +307,37 @@
       renderTimeline(active);
 
       $('#blockList').innerHTML = day.blocks.map(b => `<li>
-        <div class="grow"><strong>${esc(b.start)}–${esc(b.end)}</strong> · ${esc(b.tableId ? tableName(b.tableId) : 'All tables')}
-        ${b.reason ? `<div class="muted small">${esc(b.reason)}</div>` : ''}</div>
-        <button class="btn sm ghost" type="button" data-unblock="${b.id}">Remove</button></li>`).join('')
-        || '<li class="muted small">No blocked time.</li>';
+        <span class="when">${esc(b.start)}–${esc(b.end)}</span>
+        <div class="grow"><strong>${esc(b.tableId ? tableName(b.tableId) : 'All tables')}</strong>
+        ${b.reason ? `<div class="meta">${esc(b.reason)}</div>` : ''}</div>
+        <button class="btn btn--ghost btn--sm" type="button" data-unblock="${b.id}">Remove</button></li>`).join('')
+        || '<li><p class="empty grow">No blocked time on this day.</p></li>';
 
+      $('#listCount').textContent = `${day.bookings.length} total`;
       $('#bookingList').innerHTML = day.bookings.map(b => `<li>
-        <div class="grow"><strong>${esc(b.start)}–${esc(b.end)}</strong> · ${esc(b.table.name)} · ${esc(b.name)}
-          <span class="tag tc-${typeColorIndex(config.bookingTypes, b.type)}">${esc(b.typeLabel)}</span>
-          <div class="muted small">${esc(b.code)} · ${b.players} players${b.phone ? ` · <a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>` : ''} · ${esc(money(b.price, b.currency))} · ${b.source}</div></div>
-        <span class="badge ${b.status}">${statusLabel(b.status)}</span>
-        <button class="btn sm ghost" type="button" data-open="${esc(b.code)}">Open</button></li>`).join('')
-        || '<li class="muted small">No bookings yet.</li>';
+        <span class="when">${esc(b.start)}–${esc(b.end)}</span>
+        <div class="grow"><strong>${esc(b.name)}</strong> <span class="muted">· ${esc(b.table.name)}</span>
+          <div class="meta">${esc(b.code)} · ${b.players} players${b.phone ? ` · <a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>` : ''} · ${esc(money(b.price, b.currency))} · ${b.source === 'desk' ? 'front desk' : 'online'}</div></div>
+        <span class="tags"><span class="tag tm-${typeColorIndex(config.bookingTypes, b.type)}">${esc(b.typeLabel)}</span>
+        <span class="badge ${b.status}">${statusLabel(b.status)}</span></span>
+        <button class="btn btn--secondary btn--sm" type="button" data-open="${esc(b.code)}">Open</button></li>`).join('')
+        || '<li><p class="empty grow">No bookings yet on this day.</p></li>';
+    }
+
+    // The one line under the title: what needs attention right now.
+    function dayFinding(active) {
+      if (!day.hours) return 'Closed on this day.';
+      const now = centerNow(config.timezone);
+      if (now && date === now.date) {
+        const playing = active.filter(b => toMin(b.start) <= now.minutes && toMin(b.end) > now.minutes);
+        const next = active.filter(b => b.status === 'confirmed' && toMin(b.start) > now.minutes)
+          .sort((a, b) => toMin(a.start) - toMin(b.start))[0];
+        const inPlay = `${new Set(playing.map(b => b.table.id)).size} of ${day.tables.length} tables in play`;
+        return next ? `${inPlay}. Next: ${next.name}, ${next.start} on ${next.table.name}.` : `${inPlay}. No more arrivals today.`;
+      }
+      if (!active.length) return `Open ${day.hours.open}–${day.hours.close}. No bookings yet.`;
+      const first = [...active].sort((a, b) => toMin(a.start) - toMin(b.start))[0];
+      return `Open ${day.hours.open}–${day.hours.close}. First arrival ${first.start}, ${first.name} on ${first.table.name}.`;
     }
 
     function tableName(id) {
@@ -344,11 +354,11 @@
       const close = toMin(hours.close);
       const slot = day.slotMinutes;
       const rows = (close - open) / slot;
-      tl.style.gridTemplateColumns = `52px repeat(${day.tables.length}, minmax(90px, 1fr))`;
+      tl.style.gridTemplateColumns = `48px repeat(${day.tables.length}, minmax(96px, 1fr))`;
       const col = id => day.tables.findIndex(t => t.id === id) + 2;
       const rowOf = m => Math.floor((m - open) / slot) + 2;
 
-      let html = '<div></div>' + day.tables.map(t => `<div class="th">${esc(t.name)}</div>`).join('');
+      let html = '<div></div>' + day.tables.map(t => `<div class="th">${TABLE_TOP}${esc(t.name)}</div>`).join('');
       for (let r = 0; r < rows; r++) {
         const m = open + r * slot;
         html += `<div class="time" style="grid-row:${r + 2};grid-column:1">${m % 60 === 0 || slot === 60 ? toHHMM(m) : ''}</div>`;
@@ -362,13 +372,20 @@
         if (s >= e) continue;
         const cols = b.tableId ? `${col(b.tableId)} / span 1` : `2 / span ${day.tables.length}`;
         if (b.tableId && col(b.tableId) < 2) continue;
-        html += `<div class="blk" style="grid-row:${rowOf(s)} / ${rowOf(e - 1) + 1};grid-column:${cols}">⛔ ${esc(b.reason || 'Blocked')}</div>`;
+        html += `<div class="blk" style="grid-row:${rowOf(s)} / ${rowOf(e - 1) + 1};grid-column:${cols}">Blocked · ${esc(b.reason || 'no reason given')}</div>`;
       }
       for (const b of active) {
         const [s, e] = clamp(toMin(b.start), toMin(b.end));
         if (s >= e || col(b.table.id) < 2) continue;
-        html += `<button type="button" class="bk ${b.status} tc-${typeColorIndex(config.bookingTypes, b.type)}" title="${esc(b.typeLabel)}" data-open="${esc(b.code)}" style="grid-row:${rowOf(s)} / ${rowOf(e - 1) + 1};grid-column:${col(b.table.id)}">
-          <strong>${b.status === 'checked_in' ? '✓ ' : ''}${esc(b.name)}</strong><span class="muted">${esc(b.start)}–${esc(b.end)} · ${b.players}p · ${esc(b.typeLabel)}</span></button>`;
+        const short = rowOf(e - 1) === rowOf(s);
+        html += `<button type="button" class="bk ${b.status}${short ? ' short' : ''} tm-${typeColorIndex(config.bookingTypes, b.type)}" title="${esc(b.typeLabel)}" data-open="${esc(b.code)}" style="grid-row:${rowOf(s)} / ${rowOf(e - 1) + 1};grid-column:${col(b.table.id)}">
+          <strong>${b.status === 'checked_in' ? icon('check') + '<span class="sr-only">Checked in:</span>' : ''}${esc(b.name)}</strong><span>${esc(b.start)}–${esc(b.end)} · ${b.players}p · ${esc(b.typeLabel)}</span></button>`;
+      }
+      // "Now": the orange ball and line across the tables, today only
+      const now = centerNow(config.timezone);
+      if (now && date === now.date && now.minutes >= open && now.minutes < close) {
+        const offset = ((now.minutes - open) % slot) / slot;
+        html += `<div class="now" aria-hidden="true" style="grid-row:${rowOf(now.minutes)};transform:translateY(calc(${offset} * (var(--timeline-row) + var(--space-1))))"></div>`;
       }
       tl.innerHTML = html;
     }
@@ -397,6 +414,7 @@
 
     $('#walkForm').addEventListener('submit', async e => {
       e.preventDefault();
+      setLoading($('#walkBtn'), true);
       try {
         const res = await adminApi('/bookings', {
           method: 'POST',
@@ -410,10 +428,12 @@
         $('#wName').value = ''; $('#wPhone').value = '';
         await reloadDay();
       } catch (err) { flash('#walkMsg', err.message); }
+      finally { setLoading($('#walkBtn'), false); }
     });
 
     $('#blockForm').addEventListener('submit', async e => {
       e.preventDefault();
+      setLoading($('#blockBtn'), true);
       try {
         const res = await adminApi('/blocks', {
           method: 'POST',
@@ -428,6 +448,7 @@
         $('#bReason').value = '';
         await reloadDay();
       } catch (err) { flash('#blockMsg', err.message); }
+      finally { setLoading($('#blockBtn'), false); }
     });
 
     async function removeBlock(id) {
@@ -443,27 +464,30 @@
       if (!current) return;
       const b = current;
       $('#dTitle').textContent = b.name;
+      $('#dCode').textContent = `Booking ${b.code}`;
+      $('#dTime').innerHTML = `<span class="ball"></span>${esc(b.start)}–${esc(b.end)}`;
       $('#dStatus').className = `badge ${b.status}`;
       $('#dStatus').textContent = statusLabel(b.status);
       $('#dMsg').classList.add('hidden');
       $('#dSummary').innerHTML = `
-        <dt>Code</dt><dd>${esc(b.code)}</dd>
-        <dt>Time</dt><dd>${esc(b.start)} – ${esc(b.end)}</dd>
         <dt>Table</dt><dd>${esc(b.table.name)}</dd>
-        <dt>Session</dt><dd><span class="tag tc-${typeColorIndex(config.bookingTypes, b.type)}">${esc(b.typeLabel)}</span></dd>
+        <dt>Session</dt><dd><span class="tag tm-${typeColorIndex(config.bookingTypes, b.type)}">${esc(b.typeLabel)}</span></dd>
         <dt>Players</dt><dd>${b.players}</dd>
         <dt>Phone</dt><dd>${b.phone ? `<a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>` : '—'}</dd>
         <dt>Price</dt><dd>${esc(money(b.price, b.currency))}</dd>
         <dt>Source</dt><dd>${b.source === 'desk' ? 'Front desk' : 'Online'}</dd>`;
       const actions = {
-        confirmed: [['checked_in', 'Check in', ''], ['no_show', 'No-show', 'ghost'], ['cancelled', 'Cancel booking', 'danger']],
-        checked_in: [['confirmed', 'Undo check-in', 'ghost'], ['cancelled', 'Cancel booking', 'danger']],
-        no_show: [['confirmed', 'Restore', 'ghost']],
-        cancelled: [['confirmed', 'Restore', 'ghost']],
+        confirmed: [['checked_in', 'Check in', 'primary'], ['no_show', 'No-show', 'secondary'], ['cancelled', 'Cancel booking', 'danger']],
+        checked_in: [['confirmed', 'Undo check-in', 'secondary'], ['cancelled', 'Cancel booking', 'danger']],
+        no_show: [['confirmed', 'Restore', 'secondary']],
+        cancelled: [['confirmed', 'Restore', 'secondary']],
       }[b.status];
-      $('#dActions').innerHTML = actions.map(([s, label, cls]) => `<button type="button" class="btn ${cls}" data-status="${s}">${label}</button>`).join('')
-        + '<button type="button" class="btn ghost" id="dClose">Close</button>';
+      $('#dActions').innerHTML = actions.map(([s, label, variant]) =>
+        `<button type="button" class="btn btn--${variant} btn--md" data-status="${s}">${s === 'checked_in' ? icon('check') : ''}${label}</button>`).join('')
+        + '<button type="button" class="btn btn--ghost btn--md" id="dClose">Close</button>';
       $('#dialog').classList.remove('hidden');
+      const primary = $('#dActions .btn');
+      if (primary) primary.focus();
     }
 
     $('#dialog').addEventListener('click', async e => {
@@ -471,13 +495,13 @@
       const btn = e.target.closest('[data-status]');
       if (!btn) return;
       if (btn.dataset.status === 'cancelled' && !confirm(`Cancel ${current.name}'s booking?`)) return;
-      btn.disabled = true;
+      setLoading(btn, true);
       try {
         await adminApi(`/bookings/${current.code}`, { method: 'PATCH', body: { status: btn.dataset.status } });
         $('#dialog').classList.add('hidden');
         await reloadDay();
       } catch (err) {
-        btn.disabled = false;
+        setLoading(btn, false);
         flash('#dMsg', err.message);
       }
     });
@@ -500,7 +524,7 @@
       $('#sCur').value = s.currency;
       $('#hoursRows').innerHTML = s.hours.map((h, i) => `<div class="hours-row">
           <strong>${WEEKDAYS[i]}</strong>
-          <label class="inline" style="margin:0"><input type="checkbox" data-open-day="${i}" ${h ? 'checked' : ''}> Open</label>
+          <label class="check"><input type="checkbox" data-open-day="${i}" ${h ? 'checked' : ''}> <span class="check__text">Open</span></label>
           <input type="time" step="900" data-h-open="${i}" value="${h ? h.open : '10:00'}">
           <input type="time" step="900" data-h-close="${i}" value="${h ? (h.close === '24:00' ? '23:59' : h.close) : '22:00'}">
         </div>`).join('');
@@ -508,7 +532,7 @@
       $('#pPeak').value = s.pricing.peakPerHour;
       $('#pStart').value = s.pricing.peakStart || '';
       $('#peakDays').innerHTML = WEEKDAYS.map((d, i) =>
-        `<label><input type="checkbox" data-peak="${i}" ${s.pricing.peakDays.includes(i) ? 'checked' : ''}> ${d}</label>`).join('');
+        `<label class="check"><input type="checkbox" data-peak="${i}" ${s.pricing.peakDays.includes(i) ? 'checked' : ''}> ${d}</label>`).join('');
       $('#typeRows').innerHTML = '';
       s.bookingTypes.forEach(addTypeRow);
       $('#rSlot').value = String(s.slotMinutes);
@@ -527,7 +551,7 @@
         <input data-k="label" placeholder="Label" value="${esc(t.label)}" aria-label="Type label">
         <input data-k="extraPerHour" type="number" min="0" value="${t.extraPerHour}" aria-label="Extra per hour">
         <input data-k="minDuration" type="number" min="0" step="15" placeholder="—" value="${t.minDuration || ''}" aria-label="Minimum minutes">
-        <button class="btn sm ghost" type="button" aria-label="Remove type">✕</button>`;
+        <button class="btn btn--ghost btn--sm btn--icon" type="button" aria-label="Remove type">${icon('x')}</button>`;
       row.querySelector('button').onclick = () => row.remove();
       $('#typeRows').appendChild(row);
     }
@@ -543,6 +567,7 @@
     }
 
     $('#saveSettings').onclick = async () => {
+      setLoading($('#saveSettings'), true);
       const closeVal = v => (v === '23:59' ? '24:00' : v);
       const body = {
         centerName: $('#sName').value,
@@ -574,19 +599,22 @@
         flash('#settingsMsg', 'Settings saved.', 'ok');
         loadDay().catch(() => {});
       } catch (err) { flash('#settingsMsg', err.message); }
+      finally { setLoading($('#saveSettings'), false); }
     };
 
     function renderTables(tables) {
-      $('#tableList').innerHTML = tables.map(t => `<li>
-        <input value="${esc(t.name)}" data-tname="${t.id}" style="flex:1">
-        <label class="inline" style="margin:0;white-space:nowrap"><input type="checkbox" data-tactive="${t.id}" ${t.active ? 'checked' : ''}> In service</label>
-        <button class="btn sm ghost" type="button" data-tsave="${t.id}">Save</button></li>`).join('');
+      $('#tableList').innerHTML = tables.map(t => `<li class="table-row">
+        ${TABLE_TOP}
+        <input class="grow" value="${esc(t.name)}" data-tname="${t.id}" aria-label="Table name">
+        <label class="check xsmall"><input type="checkbox" data-tactive="${t.id}" ${t.active ? 'checked' : ''}> In service</label>
+        <button class="btn btn--secondary btn--sm" type="button" data-tsave="${t.id}">Save</button></li>`).join('');
     }
 
     $('#tableList').addEventListener('click', async e => {
       const btn = e.target.closest('[data-tsave]');
       if (!btn) return;
       const id = btn.dataset.tsave;
+      setLoading(btn, true);
       try {
         await adminApi(`/tables/${id}`, { method: 'PATCH', body: {
           name: document.querySelector(`[data-tname="${id}"]`).value,

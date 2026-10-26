@@ -1,0 +1,123 @@
+/*
+ * Design tokens: the only place colours, type, spacing, radii and shadows are defined.
+ * Every other stylesheet and template uses these variables, never raw values.
+ *
+ * Palette: navy + white, three greys, one orange accent (the ball).
+ * Contrast (WCAG AA, checked): text on --surface and on --bg is >= 4.5:1;
+ * --accent is never used for text; orange text uses --accent-ink.
+ */
+
+@font-face {
+  font-family: "Inter";
+  src: url("fonts/inter-latin-var.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* ---- raw palette ---- */
+  --navy-950: #071528;   /* pressed */
+  --navy-900: #0B1F3A;   /* primary navy */
+  --navy-700: #1E3A8A;   /* hover / active */
+  --navy-100: #DCE4F2;   /* selected tint border */
+  --navy-50:  #EEF2F9;   /* selected tint fill */
+  --white:    #FFFFFF;
+  --gray-50:  #F4F6FA;   /* page ground */
+  --gray-100: #EBEFF5;   /* sunken / taken */
+  --gray-200: #E2E8F0;   /* borders */
+  --gray-300: #CBD5E1;   /* control borders */
+  --gray-500: #5B6B80;   /* secondary text (5.4:1 on white, 5.0:1 on gray-50) */
+  --gray-700: #334155;   /* strong secondary text */
+  --orange-500: #F97316; /* the ball: marks and fills only, never text */
+  --orange-700: #C2410C; /* orange text (5.2:1 on white) */
+  --orange-50:  #FFF4EC;
+  --green-700: #15803D;  --green-50: #E9F8EE;
+  --red-700:   #B91C1C;  --red-50:   #FDECEC;
+  --amber-800: #92400E;  --amber-50: #FFFBEB;  --amber-200: #FDE68A;
+
+  /* ---- roles ---- */
+  --bg: var(--gray-50);
+  --surface: var(--white);
+  --surface-sunken: var(--gray-100);
+  --border: var(--gray-200);
+  --border-strong: var(--gray-300);
+  --text: var(--navy-900);
+  --text-muted: var(--gray-500);
+  --text-strong-muted: var(--gray-700);
+  --on-primary: var(--white);
+
+  --primary: var(--navy-900);
+  --primary-hover: var(--navy-700);
+  --primary-active: var(--navy-950);
+  --selected-bg: var(--navy-50);
+  --selected-border: var(--navy-100);
+
+  --accent: var(--orange-500);
+  --accent-ink: var(--orange-700);
+  --accent-soft: var(--orange-50);
+
+  --success: var(--green-700);  --success-bg: var(--green-50);
+  --danger: var(--red-700);     --danger-bg: var(--red-50);
+  --warning: var(--amber-800);  --warning-bg: var(--amber-50);  --warning-border: var(--amber-200);
+
+  --focus-outline: 2px solid var(--navy-700);
+  --focus-offset: 2px;
+  --scrim: rgba(7, 21, 40, 0.48);
+
+  /* ---- type ---- */
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --text-xs: 12px;    /* captions, meta */
+  --text-sm: 14px;    /* secondary, table cells */
+  --text-md: 16px;    /* body, inputs (16px stops iOS zoom) */
+  --text-lg: 20px;    /* section headings */
+  --text-xl: 24px;    /* page titles */
+  --text-2xl: 32px;   /* big figures: times, KPIs */
+  --text-3xl: 40px;   /* the booking code */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --leading-tight: 1.15;
+  --leading-normal: 1.5;
+  --tracking-tight: -0.02em;
+  --tracking-code: 0.08em;
+
+  /* ---- spacing (4px base) ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* ---- shape ---- */
+  --radius-sm: 4px;   /* tags, grid cells */
+  --radius-md: 8px;   /* buttons, inputs, choices */
+  --radius-lg: 12px;  /* cards, dialogs */
+  --radius-full: 999px;
+  --border-width: 1px;
+
+  /* ---- elevation ---- */
+  --shadow-sm: 0 1px 2px rgba(11, 31, 58, 0.05);                 /* resting cards */
+  --shadow-md: 0 4px 12px rgba(11, 31, 58, 0.08);                /* hovered / sticky */
+  --shadow-lg: 0 16px 40px rgba(11, 31, 58, 0.18);               /* dialogs */
+
+  /* ---- sizes ---- */
+  --control-sm: 32px;
+  --control-md: 40px;
+  --control-lg: 48px;
+  --tap-min: 44px;
+  --content-max: 1200px;
+  --header-height: 60px;
+  --timeline-row: 28px;  /* one slot on the front-desk timeline */
+
+  /* ---- motion ---- */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --duration: 160ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --duration: 0ms; }
+}

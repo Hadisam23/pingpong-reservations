@@ -4,92 +4,112 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Book a Table</title>
+  <link rel="preload" href="fonts/inter-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="container">
-    <header class="top">
-      <div class="logo" aria-hidden="true">🏓</div>
-      <div>
-        <h1 id="centerName">Book a table</h1>
-        <p id="subtitle">Pick a day, a time and a table</p>
+  <header class="app-header">
+    <div class="app-header__inner">
+      <a class="brand" href="index.html"><span data-icon="brand"></span><span class="brand__name" id="brandName">Ping Pong Center</span></a>
+      <div class="app-header__end">
+        <a class="btn btn--secondary btn--sm" href="manage.html"><span data-icon="search"></span>Find my booking</a>
       </div>
-    </header>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="page-head">
+      <div class="page-head__text">
+        <h1 id="centerName">Book a table</h1>
+        <p class="lede" id="subtitle">Pick a day, a session and a free table.</p>
+      </div>
+    </div>
 
     <div id="loadError" class="alert err hidden"></div>
 
-    <div id="myBookings" class="card hidden">
-      <h2>Your upcoming bookings</h2>
+    <section id="myBookings" class="card hidden" aria-labelledby="myBookingsTitle">
+      <div class="card__head"><h2 class="card__title" id="myBookingsTitle">Your upcoming bookings</h2></div>
       <ul class="list" id="myBookingsList"></ul>
+    </section>
+
+    <div id="picker" class="booking-layout">
+      <div class="booking-side">
+        <section class="card" id="dayCard" aria-labelledby="dayTitle">
+          <div class="card__head"><h2 class="card__title" id="dayTitle">Day</h2><span class="card__note" id="dayNote"></span></div>
+          <div class="chips" id="dates"></div>
+        </section>
+
+        <section class="card" id="typeCard" aria-labelledby="typeTitle">
+          <div class="card__head"><h2 class="card__title" id="typeTitle">Session</h2></div>
+          <div class="types" id="types"></div>
+        </section>
+
+        <section class="card" id="lengthCard" aria-labelledby="lengthTitle">
+          <div class="card__head"><h2 class="card__title" id="lengthTitle">Length</h2></div>
+          <div class="segmented" id="durations"></div>
+        </section>
+
+        <section class="card hidden" id="formCard" aria-labelledby="formTitle">
+          <div class="card__head"><h2 class="card__title" id="formTitle">Your booking</h2></div>
+          <div id="summary"></div>
+          <div id="formError" class="alert err hidden" role="alert"></div>
+          <form id="form" novalidate>
+            <div class="field">
+              <label for="name">Name</label>
+              <input id="name" autocomplete="name" required maxlength="60">
+            </div>
+            <div class="row">
+              <div class="field">
+                <label for="phone">Phone</label>
+                <input id="phone" type="tel" autocomplete="tel" inputmode="tel" required placeholder="050-123-4567">
+              </div>
+              <div class="field">
+                <label for="players">Players</label>
+                <select id="players"></select>
+              </div>
+            </div>
+            <button class="btn btn--primary btn--lg btn--block" id="submit" type="submit">Book this table</button>
+            <p class="muted xsmall mt-3" id="policy"></p>
+          </form>
+        </section>
+      </div>
+
+      <div class="booking-main">
+        <section class="card" aria-labelledby="gridTitle">
+          <div class="card__head"><h2 class="card__title" id="gridTitle">Time and table</h2><span class="card__note" id="gridNote"></span></div>
+          <div id="gridMsg" class="hidden"></div>
+          <div class="grid-wrap"><div class="grid" id="grid"></div></div>
+          <div class="legend" id="legend">
+            <span class="l-free">Free</span><span class="l-busy">Taken</span><span class="l-sel">Your pick</span><span class="l-peak">Peak price</span>
+          </div>
+        </section>
+      </div>
     </div>
 
-    <div id="picker">
-      <div class="card">
-        <h2>1. Day</h2>
-        <div class="chips" id="dates"></div>
-      </div>
-
-      <div class="card">
-        <h2>2. What are you playing?</h2>
-        <div class="types" id="types"></div>
-      </div>
-
-      <div class="card">
-        <h2>3. How long?</h2>
-        <div class="segmented" id="durations"></div>
-      </div>
-
-      <div class="card">
-        <h2>4. Time &amp; table</h2>
-        <div id="gridMsg" class="muted small hidden"></div>
-        <div class="grid-wrap"><div class="grid" id="grid"></div></div>
-        <div class="legend" id="legend">
-          <span class="l-free">Free</span><span class="l-busy">Taken</span><span class="l-sel">Your pick</span><span class="l-peak">Peak price</span>
+    <section class="hidden page--narrow" id="done" aria-labelledby="doneTitle">
+      <div class="ticket">
+        <div class="ticket__top">
+          <div class="ticket__row"><h2 class="h-inherit" id="doneTitle">You're booked</h2><span>Booking code</span></div>
+          <div class="ticket__code" id="doneCode"></div>
+          <div class="ticket__time" id="doneTime"></div>
+        </div>
+        <div class="ticket__body">
+          <dl class="summary" id="doneSummary"></dl>
+          <label for="doneLink">Your private link to view or cancel</label>
+          <div class="copy-line">
+            <input id="doneLink" readonly>
+            <button class="btn btn--secondary btn--md" id="copyLink" type="button"><span data-icon="copy"></span><span class="btn__label">Copy</span></button>
+          </div>
+          <p class="muted xsmall mt-2">This app remembers the booking too. Lost the link? Use your code and phone number on <a href="manage.html">Find my booking</a>.</p>
+          <div class="stack mt-4">
+            <button class="btn btn--primary btn--lg btn--block" id="shareLink" type="button"><span data-icon="share"></span>Share booking</button>
+            <button class="btn btn--ghost btn--lg btn--block" id="again" type="button">Book another table</button>
+          </div>
         </div>
       </div>
-
-      <div class="card hidden" id="formCard">
-        <h2>5. Your details</h2>
-        <dl class="summary" id="summary"></dl>
-        <div id="formError" class="alert err hidden"></div>
-        <form id="form" novalidate>
-          <div class="field">
-            <label for="name">Name</label>
-            <input id="name" autocomplete="name" required maxlength="60">
-          </div>
-          <div class="row">
-            <div class="field">
-              <label for="phone">Phone</label>
-              <input id="phone" type="tel" autocomplete="tel" inputmode="tel" required placeholder="050-123-4567">
-            </div>
-            <div class="field">
-              <label for="players">Players</label>
-              <select id="players"></select>
-            </div>
-          </div>
-          <button class="btn block" id="submit" type="submit">Book</button>
-          <p class="muted small" style="margin-top:10px" id="policy"></p>
-        </form>
-      </div>
-    </div>
-
-    <div class="card hidden" id="done">
-      <div class="alert ok">You're booked! See you at the table.</div>
-      <p class="muted small" style="text-align:center">Your booking code</p>
-      <div class="code-big" id="doneCode"></div>
-      <dl class="summary" id="doneSummary"></dl>
-      <label for="doneLink">Your private link to view or cancel</label>
-      <div class="copy-line">
-        <input id="doneLink" readonly>
-        <button class="btn ghost" id="copyLink" type="button">Copy</button>
-      </div>
-      <button class="btn block" id="shareLink" type="button" style="margin-top:10px">Share booking</button>
-      <p class="muted small" style="margin:8px 0 14px">This page remembers the booking too. Lost the link? Use your code and phone number on the <a href="manage.html">manage page</a>.</p>
-      <button class="btn block ghost" id="again" type="button">Book another table</button>
-    </div>
-
-    <p class="muted small" style="text-align:center;margin-top:8px"><a href="manage.html">Find or cancel a booking</a></p>
-  </div>
+    </section>
+  </main>
 
   <script src="config.js"></script>
   <script src="common.js"></script>
@@ -113,6 +133,7 @@
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'chip' + (date === state.date ? ' on' : '');
+        b.setAttribute('aria-pressed', String(date === state.date));
         b.disabled = closed;
         b.title = closed ? 'Closed' : prettyDate(date);
         b.innerHTML = `<div class="d1">${esc(closed ? 'Closed' : dayLabel(date))}</div><div class="d2">${Number(date.slice(8))}</div>`;
@@ -129,7 +150,7 @@
         const notes = [];
         notes.push(t.extraPerHour ? `+${money(t.extraPerHour, state.config.currency)}/h` : 'Table price only');
         if (t.minDuration) notes.push(`min ${t.minDuration % 60 === 0 ? `${t.minDuration / 60}h` : `${t.minDuration}m`}`);
-        return `<button type="button" class="type-opt tc-${i % 5}${t.id === state.type ? ' on' : ''}" data-type="${esc(t.id)}" aria-pressed="${t.id === state.type}">
+        return `<button type="button" class="type-opt${t.id === state.type ? ' on' : ''}" data-type="${esc(t.id)}" aria-pressed="${t.id === state.type}">
           <div class="tl1">${esc(t.label)}</div><div class="tl2">${esc(notes.join(' · '))}</div></button>`;
       }).join('');
     }
@@ -152,6 +173,7 @@
         const b = document.createElement('button');
         b.type = 'button';
         b.className = d === state.duration ? 'on' : '';
+        b.setAttribute('aria-pressed', String(d === state.duration));
         b.disabled = d < min;
         b.textContent = d % 60 === 0 ? `${d / 60}h` : d > 60 ? `${Math.floor(d / 60)}h ${d % 60}m` : `${d}m`;
         b.onclick = () => {
@@ -189,16 +211,18 @@
       const bookable = a.slots.filter(s => !s.past);
       if (a.closed || bookable.length === 0) {
         msg.textContent = a.closed ? 'Closed on this day.' : 'No more times left today. Try another day.';
-        msg.className = 'muted small';
+        msg.className = 'empty';
         $('#legend').classList.add('hidden');
         renderForm();
         return;
       }
       msg.classList.add('hidden');
       $('#legend').classList.remove('hidden');
-      grid.style.gridTemplateColumns = `48px repeat(${a.tables.length}, minmax(46px, 1fr))`;
+      grid.style.gridTemplateColumns = `56px repeat(${a.tables.length}, minmax(44px, 1fr))`;
+      const freeCount = bookable.reduce((n, slot) => n + a.tables.filter(t => slotState(t, slot) === 'free').length, 0);
+      $('#gridNote').textContent = `${a.open}–${a.close} · ${freeCount} free slots`;
 
-      let html = '<div></div>' + a.tables.map(t => `<div class="th" title="${esc(t.name)}">${esc(t.name.replace(/^Table\s+/i, 'T'))}</div>`).join('');
+      let html = '<div></div>' + a.tables.map(t => `<div class="th" title="${esc(t.name)}">${TABLE_TOP}${esc(t.name.replace(/^Table\s+/i, 'T'))}</div>`).join('');
       for (const slot of bookable) {
         html += `<div class="time${slot.peak ? ' peak' : ''}">${slot.time}</div>`;
         for (const t of a.tables) {
@@ -208,8 +232,9 @@
           if (st === 'free' && !fits(t.id, slot.start)) cls = 'nofit';
           if (selected) cls = 'sel';
           const disabled = cls !== 'free' && cls !== 'sel';
+          const first = selected && slot.start === state.sel.start;
           html += `<button type="button" class="cell ${cls}" data-t="${t.id}" data-s="${slot.start}" ${disabled ? 'disabled' : ''}
-            aria-label="${esc(t.name)} ${slot.time} ${cls === 'busy' ? 'taken' : cls === 'nofit' ? 'too short' : 'free'}"></button>`;
+            aria-pressed="${selected}" aria-label="${esc(t.name)} ${slot.time} ${cls === 'busy' ? 'taken' : cls === 'nofit' ? 'too short' : cls === 'sel' ? 'selected' : 'free'}">${first ? '<span class="ball"></span>' : ''}</button>`;
         }
       }
       grid.innerHTML = html;
@@ -239,17 +264,18 @@
       const card = $('#formCard');
       if (!state.sel) { card.classList.add('hidden'); return; }
       const table = state.avail.tables.find(t => t.id === state.sel.tableId);
-      $('#summary').innerHTML = `
-        <dt>Day</dt><dd>${esc(prettyDate(state.date))}</dd>
-        <dt>Time</dt><dd>${toHHMM(state.sel.start)} – ${toHHMM(state.sel.start + state.duration)}</dd>
-        <dt>Table</dt><dd>${esc(table.name)}</dd>
-        <dt>Session</dt><dd>${esc(currentType().label)}</dd>
-        <dt>Price</dt><dd class="price">${esc(money(selectionPrice(), state.config.currency))}</dd>`;
+      $('#summary').innerHTML = `<div class="sel">
+        <div class="sel__time">${toHHMM(state.sel.start)}–${toHHMM(state.sel.start + state.duration)}</div>
+        <div class="sel__price">${esc(money(selectionPrice(), state.config.currency))}</div>
+        <div class="sel__meta">${esc(prettyDate(state.date, { weekday: 'short', day: 'numeric', month: 'short' }))} · ${esc(table.name)} · ${esc(currentType().label)}</div>
+        <div class="sel__unit">pay at the desk</div>
+      </div>`;
       card.classList.remove('hidden');
     }
 
     async function loadAvailability() {
-      $('#grid').innerHTML = '<div class="muted small">Loading…</div>';
+      // Loading: the grid's real shape in flat grey, so nothing jumps when the data lands
+      $('#grid').innerHTML = `<div class="skeleton-grid" aria-label="Loading times">${'<span class="skeleton"></span>'.repeat(36)}</div>`;
       try {
         state.avail = await api(`/api/availability?date=${state.date}`);
         if (state.sel && !fits(state.sel.tableId, state.sel.start)) state.sel = null;
@@ -269,8 +295,7 @@
       e.preventDefault();
       showError('');
       const btn = $('#submit');
-      btn.disabled = true;
-      btn.textContent = 'Booking…';
+      setLoading(btn, true);
       try {
         const res = await api('/api/bookings', {
           method: 'POST',
@@ -303,8 +328,7 @@
           msg.className = 'alert err';
         }
       } finally {
-        btn.disabled = false;
-        btn.textContent = 'Book';
+        setLoading(btn, false);
       }
     });
 
@@ -317,20 +341,20 @@
       $('#picker').classList.add('hidden');
       $('#myBookings').classList.add('hidden');
       $('#doneCode').textContent = b.code;
+      $('#doneTime').innerHTML = `<span class="ball"></span>${esc(b.start)}–${esc(b.end)}`;
       $('#doneSummary').innerHTML = `
         <dt>Day</dt><dd>${esc(prettyDate(b.date))}</dd>
-        <dt>Time</dt><dd>${b.start} – ${b.end}</dd>
         <dt>Table</dt><dd>${esc(b.table.name)}</dd>
         <dt>Session</dt><dd>${esc(b.typeLabel)}</dd>
         <dt>Players</dt><dd>${b.players}</dd>
-        <dt>Price</dt><dd>${esc(money(b.price, b.currency))} <span class="muted small">(pay at the desk)</span></dd>`;
+        <dt>Price, at the desk</dt><dd class="price">${esc(money(b.price, b.currency))}</dd>`;
       $('#doneLink').value = manageUrl;
       $('#done').classList.remove('hidden');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     $('#copyLink').onclick = async () => {
-      try { await navigator.clipboard.writeText($('#doneLink').value); $('#copyLink').textContent = 'Copied'; }
+      try { await navigator.clipboard.writeText($('#doneLink').value); $('#copyLink .btn__label').textContent = 'Copied'; }
       catch { $('#doneLink').select(); }
     };
 
@@ -346,7 +370,7 @@
     $('#again').onclick = () => {
       $('#done').classList.add('hidden');
       $('#picker').classList.remove('hidden');
-      $('#copyLink').textContent = 'Copy';
+      $('#copyLink .btn__label').textContent = 'Copy';
       state.sel = null;
       renderMyBookings();
       loadAvailability();
@@ -359,9 +383,10 @@
       $('#myBookings').classList.toggle('hidden', mine.length === 0);
       $('#myBookingsList').innerHTML = mine
         .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))
-        .map(b => `<li><div class="grow"><strong>${esc(prettyDate(b.date, { weekday: 'short', day: 'numeric', month: 'short' }))}</strong>
-          · ${esc(b.start)}–${esc(b.end)} · ${esc(b.table)}${b.type ? `<div class="muted small">${esc(b.type)}</div>` : ''}</div>
-          <a class="btn sm ghost" href="manage.html?code=${encodeURIComponent(b.code)}&t=${encodeURIComponent(b.token)}">View</a></li>`)
+        .map(b => `<li><span class="when">${esc(b.start)}–${esc(b.end)}</span>
+          <div class="grow"><strong>${esc(prettyDate(b.date, { weekday: 'short', day: 'numeric', month: 'short' }))} · ${esc(b.table)}</strong>
+          ${b.type ? `<div class="meta">${esc(b.type)}</div>` : ''}</div>
+          <a class="btn btn--secondary btn--sm" href="manage.html?code=${encodeURIComponent(b.code)}&t=${encodeURIComponent(b.token)}">View</a></li>`)
         .join('');
     }
 
@@ -376,7 +401,10 @@
       }
       const c = state.config;
       document.title = `Book a Table · ${c.centerName}`;
-      $('#centerName').textContent = c.centerName;
+      $('#brandName').textContent = c.centerName;
+      const openTables = c.hours[new Date(`${c.today}T00:00:00Z`).getUTCDay()];
+      $('#subtitle').textContent = openTables ? `Open today ${openTables.open}–${openTables.close}. Pick a day, a session and a free table.` : 'Closed today. Pick another day, a session and a free table.';
+      $('#dayNote').textContent = `Up to ${c.maxAdvanceDays} days ahead`;
       $('#policy').textContent = `Free cancellation up to ${c.cancelCutoffMinutes >= 60 && c.cancelCutoffMinutes % 60 === 0
         ? `${c.cancelCutoffMinutes / 60} hour${c.cancelCutoffMinutes === 60 ? '' : 's'}` : `${c.cancelCutoffMinutes} minutes`} before your start time. Payment at the desk.`;
       $('#players').innerHTML = Array.from({ length: c.maxPlayersPerTable }, (_, i) =>
