@@ -30,7 +30,9 @@ function createApp({
   const pricing = createPricing(db, service);
   const payments = createPayments(db, { stripeKey, webhookSecret: stripeWebhookSecret, fetchImpl, currency: () => service.getSettings().currency, now });
   const checkIn = createCheckIn(db);
-  const notifier = createNotifier(db, { mailer, now });
+  // Links in emails: BASE_URL, or the address the server was last reached on
+  let seenUrl = null;
+  const notifier = createNotifier(db, { mailer, now, baseUrl: () => baseUrl || seenUrl, centerName: () => service.getSettings().centerName });
   const reservations = createReservations(db, { service, pricing, payments, checkIn, notifier, now });
   const lessons = createLessons(db, { service, reservations, payments, notifier, now });
   const memberships = createMemberships(db, { payments, notifier, service, now });
@@ -65,6 +67,10 @@ function createApp({
   });
 
   const publicUrl = req => baseUrl || `${req.protocol}://${req.get('host')}`;
+  app.use((req, res, next) => {
+    if (!baseUrl && req.get('host')) seenUrl = `${req.protocol}://${req.get('host')}`;
+    next();
+  });
   const manageUrl = (req, code, token) => `${publicUrl(req)}/manage?code=${code}&t=${encodeURIComponent(token)}`;
 
   // ---------- public API ----------
@@ -159,6 +165,8 @@ function createApp({
 
   api.get('/notifications', requireUser, (req, res) => res.json(notifier.list(req.user.id)));
   api.get('/notifications/unread', requireUser, (req, res) => res.json({ count: notifier.unread(req.user.id) }));
+  api.get('/notifications/settings', requireUser, (req, res) => res.json(notifier.prefs(req.user.id)));
+  api.put('/notifications/settings', requireUser, (req, res) => res.json(notifier.setPrefs(req.user.id, req.body)));
   api.post('/notifications/read', requireUser, (req, res) => {
     notifier.readAll(req.user.id);
     res.status(204).end();

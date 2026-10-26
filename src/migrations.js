@@ -398,6 +398,15 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    name: 'notifications: email preferences, reminders, renewal notices',
+    up(db) {
+      addColumn(db, 'users', 'notifyEmail', 'INTEGER NOT NULL DEFAULT 1');      // booking updates by email
+      addColumn(db, 'users', 'notifyReminders', 'INTEGER NOT NULL DEFAULT 1');  // 2-hour reminders
+      addColumn(db, 'bookings', 'reminderSentAt', 'TEXT');
+      addColumn(db, 'memberships', 'renewalNoticeFor', 'TEXT');                 // the period end we warned about
+    },
+  },
 ];
 
 function migrate(db) {

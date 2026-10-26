@@ -46,7 +46,7 @@
         <a class="ui-settings__row" href="packs.html"><span class="ui-settings__label">Lesson packages</span><span class="ui-settings__hint" id="packHint"></span><span data-ui-icon="forward"></span></a>
         <a class="ui-settings__row" href="membership.html"><span class="ui-settings__label">Payment methods</span><span class="ui-settings__hint" id="cardHint"></span><span data-ui-icon="forward"></span></a>
         <a class="ui-settings__row" aria-disabled="true"><span class="ui-settings__label">Family &amp; guests</span><span class="ui-settings__hint">Soon</span><span data-ui-icon="forward"></span></a>
-        <a class="ui-settings__row" aria-disabled="true"><span class="ui-settings__label">Notifications</span><span class="ui-settings__hint">Soon</span><span data-ui-icon="forward"></span></a>
+        <a class="ui-settings__row" href="notifications.html"><span class="ui-settings__label">Notifications</span><span class="ui-settings__hint" id="noteHint"></span><span data-ui-icon="forward"></span></a>
         <button type="button" class="ui-settings__row" id="rulesBtn" aria-haspopup="dialog"><span class="ui-settings__label">Club rules &amp; policies</span><span data-ui-icon="forward"></span></button>
         <a class="ui-settings__row" aria-disabled="true"><span class="ui-settings__label">Help &amp; contact</span><span class="ui-settings__hint">Soon</span><span data-ui-icon="forward"></span></a>
       </nav>
@@ -114,6 +114,7 @@
       try {
         user = await Auth.requireUser();
         App.tabbar('profile');
+        App.call('/api/notifications/settings').then(p => { $('#noteHint').textContent = p.email ? 'On' : 'In app only'; }).catch(() => {});
         App.call('/api/my/bookings').then(b => {
           const p = b.credits.pack;
           $('#packHint').textContent = p.total ? `${p.left} of ${p.total} left` : '';

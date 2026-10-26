@@ -8,12 +8,14 @@ const { findPlan } = require('./plans');
 const { formatHHMM, parseHHMM, isValidDate, weekday, addDays, nowIn, minutesUntil, zonedToUtc } = require('./time');
 const { round2 } = require('./pricing');
 const { cleanName, cleanEmail, cleanPhone } = require('./auth');
+const { toIcs } = require('./ics');
 
 const HOLD_MINUTES = 10;
 const REDIRECT_HOLD_MINUTES = 35;   // a Stripe Checkout page stays open at least 30 min
 const CREDIT_MAX_MINUTES = 60;      // one table credit covers a booking up to an hour
 const SPLIT_DEADLINE_MINUTES = 120; // unpaid shares go to the organizer 2 h before
 const NO_SHOW_MINUTES = 15;
+const REMINDER_MINUTES = 120;
 const EARLY_CHECKIN_MINUTES = 15;
 const STRIP_DAYS = 7;
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -58,7 +60,7 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
       WHERE id = @id`),
     cancel: db.prepare("UPDATE bookings SET status = 'cancelled', cancelledAt = @now, refundedAt = @refundedAt, updatedAt = @now WHERE id = @id"),
     move: db.prepare(`UPDATE bookings SET date = @date, startMin = @startMin, endMin = @endMin, tableId = @tableId,
-      checkInCode = @checkInCode, updatedAt = @now WHERE id = @id`),
+      checkInCode = @checkInCode, reminderSentAt = NULL, updatedAt = @now WHERE id = @id`),
     creditBalance: db.prepare("SELECT COALESCE(SUM(delta), 0) AS n FROM credit_ledger WHERE userId = ? AND type = 'TABLE_CREDIT'"),
     pack: db.prepare(`SELECT COALESCE(SUM(lessonsTotal), 0) AS total, COALESCE(SUM(lessonsUsed), 0) AS used FROM lesson_packs
       WHERE userId = ? AND expiresAt > ?`),
@@ -75,6 +77,8 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
       AND (date > ? OR (date = ? AND endMin > ?))`),
     dueNoShows: db.prepare(`SELECT id FROM bookings WHERE status = 'confirmed' AND (date < @date OR (date = @date AND startMin + ${NO_SHOW_MINUTES} <= @minutes))`),
     setStatus: db.prepare('UPDATE bookings SET status = ?, updatedAt = ? WHERE id = ?'),
+    dueReminders: db.prepare(`${SELECT} WHERE b.status = 'confirmed' AND b.reminderSentAt IS NULL AND b.date IN (?, ?)`),
+    reminded: db.prepare('UPDATE bookings SET reminderSentAt = ? WHERE id = ?'),
     splitDue: db.prepare(`SELECT DISTINCT b.id FROM bookings b JOIN booking_participants p ON p.bookingId = b.id
       WHERE b.status = 'confirmed' AND b.splitCost = 1 AND p.paid = 0 AND p.coveredByOrganizerAt IS NULL`),
   };
@@ -475,8 +479,21 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
         userId: row.userId, email: row.email, type: 'booking_confirmed', title: row.kind === 'TABLE' ? 'Table booked' : `${v.title} booked`,
         body: `${prettyDay(row.date)} · ${v.start}–${v.end} · ${v.where}`,
         emailSubject: `You're booked: ${prettyDay(row.date)} ${v.start}`,
-        emailText: `Hi ${row.name.split(' ')[0]},\n\nYou're booked: ${v.title}${row.coachName ? ` with ${row.coachName}` : ''}.\n\n${prettyDay(row.date)}, ${v.start}–${v.end}\n${v.where}\nBooking #RC-${row.code}\n\nFree cancellation until ${v.cancellation.freeUntilDate} ${v.cancellation.freeUntilTime}.\nShow the QR code in the app at the door to check in.\n\nSee you at ${settings().centerName}!`,
+        emailText: `Hi ${row.name.split(' ')[0]},\n\nYou're booked: ${v.title}${row.coachName ? ` with ${row.coachName}` : ''}.\n\n${prettyDay(row.date)}, ${v.start}–${v.end}\n${v.where}\nBooking #RC-${row.code}\n\nFree cancellation until ${v.cancellation.freeUntilDate} ${v.cancellation.freeUntilTime}. We'll remind you 2 hours before.\n\nShow your check-in pass at the door. The calendar file is attached.`,
+        button: { label: 'Open check-in pass', path: passPath(row) },
+        attachments: [{ filename: `rally-club-${row.code}.ics`, contentType: 'text/calendar', content: calendarFile(row) }],
       });
+      // Invited players: a pay link when the cost is split, otherwise a heads-up
+      for (const p of stmts.participants.all(row.id).filter(x => x.inviteEmail)) {
+        const owes = p.payToken && !p.paid;
+        notifier.notify({
+          email: p.inviteEmail, type: owes ? 'split_request' : 'invite',
+          title: owes ? `${row.name.split(' ')[0]} split a table with you` : `${row.name.split(' ')[0]} booked a table for you`,
+          emailText: `${p.name ? `Hi ${p.name.split(' ')[0]},\n\n` : ''}${row.name} booked a table at ${settings().centerName}: ${prettyDay(row.date)}, ${v.start}–${v.end} (${v.where}).${owes ? `\n\nYour share is ${p.shareAmount} ${settings().currency}. Please pay it before ${formatHHMM(Math.max(0, row.startMin - SPLIT_DEADLINE_MINUTES))} on the day, or it goes to ${row.name.split(' ')[0]}.` : ''}`,
+          button: owes ? { label: 'Pay my share', path: `pay.html?t=${encodeURIComponent(p.payToken)}` } : null,
+          attachments: [{ filename: `rally-club-${row.code}.ics`, contentType: 'text/calendar', content: calendarFile(row) }],
+        });
+      }
     }
     return row;
   }
@@ -495,6 +512,16 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
 
   // Lessons & classes plug in here: claimSeat when a class seat is confirmed, seatFreed when one is cancelled
   const hooks = {};
+
+  const passPath = row => `confirmed.html?code=${row.code}&view=pass${row.userId ? '' : `&token=${encodeURIComponent(row.manageToken)}`}`;
+  function calendarFile(row) {
+    const v = summary(row);
+    return toIcs({
+      uid: `${row.code}@rallyclub`, start: v.startsAt, end: v.endsAt, now: iso(),
+      title: `${v.title}${row.coachName ? ` with ${row.coachName}` : ''} · ${settings().centerName}`,
+      location: `${settings().centerName} · ${v.where}`, description: `Booking #RC-${row.code}. Show your check-in pass at the door.`,
+    });
+  }
 
   // ---------- views ----------
 
@@ -592,6 +619,7 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
       body: `${prettyDay(row.date)} · ${v.start}–${v.end}${refundable ? ' · refunded' : ''}`,
       emailSubject: `Cancelled: ${prettyDay(row.date)} ${v.start}`,
       emailText: `Your booking #RC-${row.code} on ${prettyDay(row.date)} at ${v.start} is cancelled.${refundable ? ' You get a full refund to the original payment method.' : ' It was inside the free-cancellation window, so it is not refunded.'}`,
+      button: { label: 'Book another time', path: row.kind === 'TABLE' ? 'book.html' : 'lessons.html' },
     });
     return v;
   }
@@ -703,8 +731,27 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
 
   // ---------- jobs ----------
 
+  // 2 hours before: a reminder (bell + email) for every live booking
+  function sendReminders() {
+    const t = today();
+    for (const row of stmts.dueReminders.all(t.date, addDays(t.date, 1))) {
+      const until = minutesToStart(row);
+      if (until <= 0 || until > REMINDER_MINUTES) continue;
+      stmts.reminded.run(iso(), row.id);
+      const v = view(row);
+      notifier.notify({
+        userId: row.userId, email: row.email, type: 'booking_reminder', title: `See you at ${v.start}`,
+        body: `${v.title} · ${v.start}–${v.end} · ${v.where}`,
+        emailSubject: `Reminder: ${v.title} at ${v.start} today`,
+        emailText: `${v.title}${row.coachName ? ` with ${row.coachName}` : ''} starts at ${v.start} (${v.where}).\n\nShow your check-in pass at the door, from 15 minutes before.`,
+        button: { label: 'Open check-in pass', path: passPath(row) },
+      });
+    }
+  }
+
   async function runJobs() {
     expireHolds();
+    sendReminders();
     const t = today();
     // No-show: not checked in 15 min after the start
     for (const { id } of stmts.dueNoShows.all({ date: t.date, minutes: t.minutes })) stmts.setStatus.run('no_show', iso(), id);

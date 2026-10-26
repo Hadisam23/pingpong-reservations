@@ -12,14 +12,15 @@ const { app, db, payments, runJobs } = createApp({
   dbFile,
   adminPassword,
   corsOrigins,
-  baseUrl: process.env.BASE_URL || null,
+  // Public address for links in emails and Stripe return pages (else taken from requests)
+  baseUrl: process.env.BASE_URL ? process.env.BASE_URL.replace(/\/+$/, '') : null,
   mailer: createMailer({ log: true }),
   stripeKey: process.env.STRIPE_SECRET_KEY || null,
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || null,
 });
 
 if (!adminPassword) {
-  console.warn('ADMIN_PASSWORD is not set: the admin panel is disabled.');
+  console.log('Admin panel: log in at /admin with an ADMIN account (npm run make-admin -- you@club.com).');
 }
 
 // Background jobs: release expired holds, mark no-shows, settle split costs

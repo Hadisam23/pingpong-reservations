@@ -199,6 +199,14 @@ test('member: Home → book with a table credit → My bookings → reschedule',
   await page.waitForURL(/bookings\.html/);
   await page.waitForSelector('.ui-booking');
   assert.ok(await page.locator('.ui-booking__title', { hasText: `Table · ${newTime}` }).count() >= 1);
+
+  // The bell: the booking and the move are in the list, preferences can be changed
+  await page.goto(`${appOrigin}/notifications.html`);
+  await page.waitForSelector('.ui-note-item');
+  assert.ok(await page.locator('.ui-note-item', { hasText: 'Booking moved' }).count() >= 1);
+  await page.click('label:has(#prefReminders)');
+  await page.waitForSelector('.ui-toast--success');
+  await page.screenshot({ path: path.join(SHOTS, `${browserName}-8-notifications.png`), fullPage: true });
   assert.deepEqual(errors, []);
 });
 

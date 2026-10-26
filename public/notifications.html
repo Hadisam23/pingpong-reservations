@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Notifications · Rally Club</title>
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+</head>
+<body class="ui-app">
+  <div class="ui-shell">
+    <main class="ui-screen ui-screen--app" aria-labelledby="title" id="screen" aria-busy="true">
+      <div class="ui-screen__head">
+        <a class="ui-icon-btn" href="home.html" aria-label="Back" id="back"><span data-ui-icon="back"></span></a>
+        <h1 class="ui-h2" id="title">Notifications</h1>
+      </div>
+
+      <section class="ui-card ui-card--list" aria-label="Recent notifications" id="listCard">
+        <div class="ui-notes" id="list">
+          <span class="ui-skel ui-skel--card" aria-hidden="true" style="margin: var(--space-2)"></span>
+          <span class="ui-skel ui-skel--card" aria-hidden="true" style="margin: var(--space-2)"></span>
+        </div>
+      </section>
+
+      <section class="ui-card ui-prefs" aria-labelledby="prefsTitle">
+        <h2 class="ui-section" id="prefsTitle">Email me</h2>
+        <label class="ui-toggle">
+          <span class="ui-toggle__text"><span class="ui-toggle__title">Booking updates</span><span class="ui-toggle__sub">Confirmations, changes, cancellations, waitlist spots</span></span>
+          <span class="ui-switch"><input type="checkbox" id="prefEmail" aria-label="Booking updates by email"><span class="ui-switch__track" aria-hidden="true"></span><span class="ui-switch__knob" aria-hidden="true"></span></span>
+        </label>
+        <label class="ui-toggle">
+          <span class="ui-toggle__text"><span class="ui-toggle__title">Reminders</span><span class="ui-toggle__sub">2 hours before each booking</span></span>
+          <span class="ui-switch"><input type="checkbox" id="prefReminders" aria-label="Reminders by email"><span class="ui-switch__track" aria-hidden="true"></span><span class="ui-switch__knob" aria-hidden="true"></span></span>
+        </label>
+        <p class="ui-small ui-muted">Payment problems are always emailed. Everything also shows here in the app.</p>
+      </section>
+    </main>
+    <nav id="tabbar"></nav>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script src="ui.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+  <script>
+    const ICON = {
+      booking_confirmed: 'check', booking_moved: 'calendar', booking_cancelled: 'x', booking_reminder: 'clock',
+      waitlist_offer: 'users', waitlist_expired: 'users', class_cancelled: 'x', split_remainder: 'card',
+      pack_bought: 'gift', membership: 'card', membership_renewing: 'card', payment_failed: 'alert',
+    };
+    const LINK = {
+      booking_confirmed: 'bookings.html', booking_moved: 'bookings.html', booking_cancelled: 'bookings.html?tab=past', booking_reminder: 'bookings.html',
+      waitlist_offer: 'lessons.html?tab=group', class_cancelled: 'lessons.html?tab=group', split_remainder: 'bookings.html', pack_bought: 'packs.html',
+      membership: 'membership.html', membership_renewing: 'membership.html', payment_failed: 'membership.html',
+    };
+
+    function ago(iso) {
+      const min = Math.round((Date.now() - new Date(iso)) / 60000);
+      if (min < 1) return 'now';
+      if (min < 60) return `${min} min`;
+      if (min < 1440) return `${Math.round(min / 60)} h`;
+      return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    }
+
+    async function load() {
+      const items = await App.call('/api/notifications');
+      $('#list').innerHTML = items.length ? items.map(n => {
+        const inner = `<span class="ui-note-item__icon" aria-hidden="true">${UI.icon(ICON[n.type] || 'bell')}</span>
+          <span class="ui-note-item__text"><span class="ui-note-item__title">${UI.esc(n.title)}${n.unread ? '<span class="ui-sr"> (new)</span>' : ''}</span><span class="ui-note-item__body">${UI.esc(n.body)}</span></span>
+          <span class="ui-note-item__time">${UI.esc(ago(n.createdAt))}</span>`;
+        return LINK[n.type]
+          ? `<a class="ui-note-item${n.unread ? ' is-unread' : ''}" href="${LINK[n.type]}">${inner}</a>`
+          : `<div class="ui-note-item${n.unread ? ' is-unread' : ''}">${inner}</div>`;
+      }).join('') : `<div class="ui-empty" style="border: 0">
+          <span class="ui-empty__icon">${UI.icon('bell')}</span><span class="ui-empty__title">All quiet</span>
+          <span class="ui-empty__text">Booking confirmations, reminders and waitlist spots show up here.</span></div>`;
+      $('#screen').removeAttribute('aria-busy');
+      // Opening the list marks everything read
+      if (items.some(n => n.unread)) App.call('/api/notifications/read', { method: 'POST', body: {} }).catch(() => {});
+    }
+
+    async function savePrefs() {
+      try {
+        await App.call('/api/notifications/settings', { method: 'PUT', body: { email: $('#prefEmail').checked, reminders: $('#prefReminders').checked } });
+        UI.toast('Saved.', { kind: 'success' });
+      } catch (err) {
+        UI.toast(err.message, { kind: 'error' });
+      }
+    }
+    $('#prefEmail').addEventListener('change', savePrefs);
+    $('#prefReminders').addEventListener('change', savePrefs);
+
+    (async () => {
+      await Auth.requireUser();
+      App.tabbar('home');
+      if (document.referrer.includes('profile')) { $('#back').href = 'profile.html'; App.tabbar('profile'); }
+      const prefs = await App.call('/api/notifications/settings');
+      $('#prefEmail').checked = prefs.email;
+      $('#prefReminders').checked = prefs.reminders;
+      load().catch(err => UI.toast(err.message, { kind: 'error' }));
+    })();
+  </script>
+</body>
+</html>

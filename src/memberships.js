@@ -7,6 +7,8 @@
 const { ApiError } = require('./service');
 const { findPlan, listPlans } = require('./plans');
 
+const RENEWAL_NOTICE_DAYS = 3;
+
 function addMonth(date) {
   const d = new Date(date);
   const day = d.getUTCDate();
@@ -31,6 +33,9 @@ function createMemberships(db, { payments, notifier, service, now = () => new Da
     due: db.prepare(`SELECT * FROM memberships WHERE planId != 'dropin' AND currentPeriodEnd IS NOT NULL AND currentPeriodEnd <= ?
       AND stripeSubscriptionId IS NULL AND status IN ('ACTIVE', 'PAST_DUE')`),
     credits: db.prepare("SELECT COALESCE(SUM(delta), 0) AS n FROM credit_ledger WHERE userId = ? AND type = 'TABLE_CREDIT'"),
+    renewingSoon: db.prepare(`SELECT * FROM memberships WHERE status = 'ACTIVE' AND planId != 'dropin' AND cancelAtPeriodEnd = 0
+      AND currentPeriodEnd > ? AND currentPeriodEnd <= ? AND (renewalNoticeFor IS NULL OR renewalNoticeFor != currentPeriodEnd)`),
+    noticeSent: db.prepare('UPDATE memberships SET renewalNoticeFor = ? WHERE userId = ?'),
     ledger: db.prepare("INSERT INTO credit_ledger (userId, type, delta, reason, bookingId, createdAt) VALUES (?, 'TABLE_CREDIT', ?, ?, NULL, ?)"),
   };
   const iso = () => now().toISOString();
@@ -166,7 +171,25 @@ function createMemberships(db, { payments, notifier, service, now = () => new Da
 
   // ---------- renewals (demo provider) ----------
 
+  // 3 days before a renewal: a heads-up with the amount
+  function renewalNotices() {
+    const soon = new Date(now().getTime() + RENEWAL_NOTICE_DAYS * 86400000).toISOString();
+    for (const m of stmts.renewingSoon.all(iso(), soon)) {
+      const plan = findPlan(db, m.planId);
+      if (!plan || !plan.price) continue;
+      stmts.noticeSent.run(m.currentPeriodEnd, m.userId);
+      const on = new Date(m.currentPeriodEnd).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+      notifier.notify({
+        userId: m.userId, type: 'membership_renewing', title: `${plan.name} renews ${on}`,
+        body: `We'll charge ${plan.price} ${currency()} for the next month.`,
+        emailText: `Your ${plan.name} membership renews on ${on} for ${plan.price} ${currency()}.\n\nNothing to do if you'd like to keep it. To change or cancel, open Membership in the app.`,
+        button: { label: 'Manage membership', path: 'membership.html' },
+      });
+    }
+  }
+
   async function runJobs() {
+    renewalNotices();
     for (const m of stmts.due.all(iso())) {
       const plan = findPlan(db, m.planId);
       if (m.cancelAtPeriodEnd || !plan || plan.price === 0) {
@@ -179,7 +202,12 @@ function createMemberships(db, { payments, notifier, service, now = () => new Da
         startPeriod(m.userId, plan, addMonth(new Date(m.currentPeriodEnd)).toISOString());
       } else if (m.status !== 'PAST_DUE') {
         stmts.setStatus.run('PAST_DUE', iso(), m.userId);
-        notifier.notify({ userId: m.userId, type: 'membership', title: 'Payment failed', body: `We couldn't renew ${plan.name}. Member prices are paused until your card is updated.` });
+        notifier.notify({
+          userId: m.userId, type: 'payment_failed', title: 'Payment failed', critical: true,
+          body: `We couldn't renew ${plan.name}. Member prices are paused until your card is updated.`,
+          emailText: `We couldn't charge your card for ${plan.name}, so member prices and the longer booking window are paused.\n\nUpdate your card to switch them back on.`,
+          button: { label: 'Update payment', path: 'membership.html' },
+        });
       }
     }
   }
@@ -214,7 +242,11 @@ function createMemberships(db, { payments, notifier, service, now = () => new Da
     const m = obj.subscription && stmts.bySubscription.get(obj.subscription);
     if (m) {
       stmts.setStatus.run('PAST_DUE', iso(), m.userId);
-      notifier.notify({ userId: m.userId, type: 'membership', title: 'Payment failed', body: 'Member prices are paused until your card is updated.' });
+      notifier.notify({
+        userId: m.userId, type: 'payment_failed', title: 'Payment failed', critical: true, body: 'Member prices are paused until your card is updated.',
+        emailText: "We couldn't charge your card for your membership, so member prices are paused.\n\nUpdate your card to switch them back on.",
+        button: { label: 'Update payment', path: 'membership.html' },
+      });
     }
   });
   payments.onEvent('customer.subscription.updated', async obj => syncSubscription(obj.id));

@@ -291,7 +291,8 @@ function createLessons(db, { service, reservations, payments, notifier, now = ()
         userId: w.userId, type: 'waitlist_offer', title: 'A spot opened up',
         body: `${cls.title} · ${DOW[weekday(s.date)]} ${formatHHMM(s.minutes)}. It's yours if you confirm within ${OFFER_HOURS} hours.`,
         emailSubject: `A spot opened in ${cls.title}`,
-        emailText: `Good news: a spot opened in ${cls.title} (${s.date}, ${formatHHMM(s.minutes)}).\nIt's held for you for ${OFFER_HOURS} hours. Open the app → Lessons → Group classes to confirm.`,
+        emailText: `Good news: a spot opened in ${cls.title} (${s.date}, ${formatHHMM(s.minutes)}).\n\nIt's held for you for ${OFFER_HOURS} hours, then it goes to the next person on the list.`,
+        button: { label: 'Confirm my spot', path: 'lessons.html?tab=group' },
       });
     }
   }

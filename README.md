@@ -97,7 +97,7 @@ Players can create an account (email + password), pick a membership, and manage 
 - The website keeps the session in an HttpOnly cookie. The iOS app (another origin) keeps the token
   and sends `Authorization: Bearer`.
 - 10 failed logins per email or IP in 15 minutes → wait 15 minutes.
-- **Email:** until real email is set up (Phase 8), messages such as reset links are printed to the
+- **Email:** see Notifications below. Without an email provider, messages are printed to the
   server console.
 - **Paid plans** start after payment (step 3 of sign up, or Manage membership). Plan prices in
   `src/plans.js` are placeholders.
@@ -279,6 +279,21 @@ API: `GET /api/me/membership`, `PUT /api/me/plan` (→ `{ user, membership, redi
 | Members | Plan and status, credits, pack lessons, bookings, credits and payment history; adjust credits; change role |
 | Settings | Club name, time zone, cancellation window, opening hours, tables & areas, holiday closures |
 | Reports | Utilization by hour, revenue by type, no-show rate, bookings, active members |
+
+## Notifications (Phase 8)
+
+- **In the app:** the bell on Home (orange dot when unread) opens `notifications.html`: every
+  confirmation, change, cancellation, reminder, waitlist offer and membership message. Opening it
+  marks them read. Players choose what also comes by email (booking updates, reminders).
+- **Email** (branded HTML + plain text): booking confirmed (with the `.ics` file and a link to the
+  check-in pass), reminder 2 hours before, moved, cancelled (refund or not), waitlist spot opened,
+  split-the-cost pay link to invited players, membership renewing in 3 days, payment failed (always
+  sent), password reset.
+- **Delivery:** set `RESEND_API_KEY` (Resend) or `SMTP_URL` (any SMTP server, e.g.
+  `smtps://user:pass@smtp.example.com`), and `EMAIL_FROM`. Neither set → printed to the console.
+  Set `BASE_URL` to the public address so email links work (otherwise the last address the server
+  was reached on is used).
+- Push notifications for the iOS app need an Apple Push certificate and are not set up yet.
 
 ## Project layout
 

@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { ApiError, normalizePhone } = require('./service');
 const { listPlans, findPlan } = require('./plans');
 const { nowIn } = require('./time');
+const { renderEmail } = require('./emails');
 
 const SKILL_LEVELS = ['beginner', 'intermediate', 'advanced'];
 const SESSION_DAYS = 30;
@@ -222,11 +223,12 @@ function createAuth(db, { mailer, now = () => new Date() } = {}) {
     const expires = new Date(now().getTime() + RESET_MINUTES * 60000);
     stmts.insertReset.run(sha256(token), row.id, expires.toISOString());
     const link = `${baseUrl}/reset-password?token=${token}`;
-    mailer.send({
-      to: row.email,
-      subject: 'Reset your Rally Club password',
+    const message = renderEmail({
+      title: 'Reset your password',
       text: `Hi ${row.name.split(' ')[0]},\n\nUse this link to set a new password. It works once and expires in ${RESET_MINUTES} minutes:\n${link}\n\nIf you didn't ask for this, you can ignore this email.`,
+      button: { label: 'Set a new password', url: link },
     });
+    mailer.send({ to: row.email, subject: 'Reset your Rally Club password', text: message.text, html: message.html });
   }
 
   function resetPassword({ token, password } = {}) {
