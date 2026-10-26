@@ -159,7 +159,7 @@
         sessionStorage.setItem('rc.flash', user.plan.status === 'pending_payment'
           ? `${plan.name} plan saved. Online payment for memberships is coming soon.`
           : `You're on ${plan.name}.`);
-        location.replace('profile.html');
+        location.replace(new URLSearchParams(location.search).get('change') ? 'profile.html' : 'home.html');
       } catch (err) {
         UI.toast(err.message, { kind: 'error' });
         UI.setLoading(btn, false);

@@ -2,14 +2,14 @@ const { parseHHMM, isValidTimeZone } = require('./time');
 
 // Opening hours are indexed by weekday: 0 = Sunday ... 6 = Saturday. null = closed.
 const DEFAULT_SETTINGS = {
-  centerName: 'Ping Pong Center',
+  centerName: 'Rally Club',
   timezone: 'Asia/Jerusalem',
   currency: 'ILS',
   slotMinutes: 30,
   durations: [30, 60, 90, 120],
   maxAdvanceDays: 14,
   minNoticeMinutes: 0,
-  cancelCutoffMinutes: 120,
+  cancelCutoffMinutes: 1440,   // free cancellation (and refund) until 24 h before
   maxActiveBookingsPerPhone: 3,
   maxPlayersPerTable: 4,
   hours: [

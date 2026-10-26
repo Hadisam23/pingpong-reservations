@@ -94,11 +94,21 @@
     });
   }
 
+  // Remembers a widget on its element: later calls swap the options and re-render.
+  function mount(el, get, put, render) {
+    const ctl = { set(v) { get().value = v; render(); }, get: () => get().value };
+    el.__ui = next => { put(next); render(); return ctl; };
+    return ctl;
+  }
+
   // ---------- date strip ----------
-  // UI.dateStrip(el, { days: [{ value, dow, num, disabled }], value, onChange, label })
-  function dateStrip(el, o) {
+  // UI.dateStrip(el, { days: [{ value, dow, num, disabled }], value, onChange, label, cls })
+  function dateStrip(el, opts) {
+    // Calling it again on the same element updates it (no second set of listeners)
+    if (el.__ui) return el.__ui(opts);
+    let o = opts;
     const render = () => {
-      el.className = 'ui-datestrip';
+      el.className = `ui-datestrip${o.cls ? ` ${o.cls}` : ''}`;
       el.setAttribute('role', 'group');
       el.setAttribute('aria-label', o.label || 'Date');
       el.innerHTML = o.days.map(d => `<button type="button" class="ui-date" data-value="${esc(d.value)}"
@@ -115,12 +125,15 @@
       if (o.onChange) o.onChange(o.value);
     });
     rove(el, '.ui-date');
-    return { set(v) { o.value = v; render(); }, get: () => o.value };
+    return mount(el, () => o, next => { o = next; }, render);
   }
 
   // ---------- segmented control / tabs ----------
   // UI.segmented(el, { options: [{ value, label }], value, onChange, label, tabs: false })
-  function segmented(el, o) {
+  function segmented(el, opts) {
+    // Calling it again on the same element updates it (no second set of listeners)
+    if (el.__ui) return el.__ui(opts);
+    let o = opts;
     const render = () => {
       el.className = 'ui-segmented';
       el.setAttribute('role', o.tabs ? 'tablist' : 'group');
@@ -142,12 +155,15 @@
       if (o.onChange) o.onChange(o.value);
     });
     rove(el, '.ui-segment');
-    return { set(v) { o.value = v; render(); }, get: () => o.value };
+    return mount(el, () => o, next => { o = next; }, render);
   }
 
   // ---------- start-time slots ----------
   // UI.slots(el, { slots: [{ time, full, peak }], value, onChange })
-  function slots(el, o) {
+  function slots(el, opts) {
+    // Calling it again on the same element updates it (no second set of listeners)
+    if (el.__ui) return el.__ui(opts);
+    let o = opts;
     const render = () => {
       el.className = 'ui-slots';
       el.setAttribute('role', 'group');
@@ -168,12 +184,15 @@
       if (o.onChange) o.onChange(o.value);
     });
     rove(el, '.ui-slot');
-    return { set(v) { o.value = v; render(); }, get: () => o.value };
+    return mount(el, () => o, next => { o = next; }, render);
   }
 
   // ---------- option rows (payment method): a radiogroup ----------
   // UI.options(el, { options: [{ value, title, sub }], value, onChange, label })
-  function options(el, o) {
+  function options(el, opts) {
+    // Calling it again on the same element updates it (no second set of listeners)
+    if (el.__ui) return el.__ui(opts);
+    let o = opts;
     const render = () => {
       el.setAttribute('role', 'radiogroup');
       el.setAttribute('aria-label', o.label || 'Options');
@@ -195,12 +214,15 @@
       if (o.onChange) o.onChange(o.value);
     });
     rove(el, '.ui-option');
-    return { set(v) { o.value = v; render(); }, get: () => o.value };
+    return mount(el, () => o, next => { o = next; }, render);
   }
 
   // ---------- pressed-state chips (filters, skill level) ----------
   // UI.chips(el, { options: [{ value, label }], value, onChange, multi: false, block: false })
-  function chips(el, o) {
+  function chips(el, opts) {
+    // Calling it again on the same element updates it (no second set of listeners)
+    if (el.__ui) return el.__ui(opts);
+    let o = opts;
     // Exposes the current value on the element so forms can read it.
     const sync = () => { el.dataset.value = o.multi ? o.value.join(',') : o.value; };
     const selected = () => (o.multi ? o.value : [o.value]);
@@ -222,7 +244,7 @@
       el.querySelector(`[data-value="${CSS.escape(v)}"]`).focus();
       if (o.onChange) o.onChange(o.value);
     });
-    return { set(v) { o.value = v; render(); }, get: () => o.value };
+    return mount(el, () => o, next => { o = next; }, render);
   }
 
   // ---------- toast ----------

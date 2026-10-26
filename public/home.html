@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Home · Rally Club</title>
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+</head>
+<body class="ui-app">
+  <div class="ui-shell">
+    <main class="ui-screen ui-screen--app" aria-labelledby="name" id="screen" aria-busy="true" style="gap: var(--space-5)">
+      <header class="ui-home-head">
+        <div class="ui-home-head__hello">
+          <span class="ui-home-head__greeting" id="greeting">Hello</span>
+          <h1 class="ui-home-head__name" id="name">&nbsp;</h1>
+        </div>
+        <div class="ui-home-head__side">
+          <span class="ui-pill" id="plan" hidden></span>
+          <a class="ui-icon-btn" href="notifications.html" id="bell" aria-label="Notifications" hidden><span data-ui-icon="bell"></span><span class="ui-icon-btn__dot" id="bellDot" aria-hidden="true" hidden></span></a>
+        </div>
+      </header>
+
+      <span class="ui-skel" style="height: 176px; border-radius: var(--radius-hero)" id="heroSkel" aria-hidden="true"></span>
+      <section class="ui-hero" id="hero" aria-labelledby="heroLabel" hidden></section>
+
+      <nav class="ui-actions-grid" aria-label="Quick actions">
+        <a class="ui-card ui-action" href="book.html">
+          <span class="ui-action__icon"><span data-ui-icon="table"></span></span>
+          <span><span class="ui-action__title" style="display: block">Book a table</span><span class="ui-action__sub">From 30 min</span></span>
+        </a>
+        <a class="ui-card ui-action" href="lessons.html">
+          <span class="ui-action__icon ui-action__icon--accent"><span data-ui-icon="coach"></span></span>
+          <span><span class="ui-action__title" style="display: block">Book a lesson</span><span class="ui-action__sub">Private or group</span></span>
+        </a>
+        <a class="ui-card ui-action ui-action--row" href="lessons.html?tab=group">
+          <span class="ui-action__icon ui-action__icon--soft"><span data-ui-icon="users"></span></span>
+          <span class="ui-action__title">Open play</span>
+        </a>
+        <a class="ui-card ui-action ui-action--row" href="profile.html" id="membershipLink">
+          <span class="ui-action__icon ui-action__icon--soft"><span data-ui-icon="card"></span></span>
+          <span class="ui-action__title">Membership</span>
+        </a>
+      </nav>
+
+      <section class="ui-group" style="gap: var(--space-10)" aria-labelledby="freeTitle">
+        <div class="ui-section-head">
+          <h2 class="ui-section" id="freeTitle">Free tables today</h2>
+          <a class="ui-link" href="book.html">See all</a>
+        </div>
+        <div class="ui-freeslots" id="free">
+          <span class="ui-skel" style="flex: 1; height: 56px; border-radius: var(--radius-tile)" aria-hidden="true"></span>
+          <span class="ui-skel" style="flex: 1; height: 56px; border-radius: var(--radius-tile)" aria-hidden="true"></span>
+          <span class="ui-skel" style="flex: 1; height: 56px; border-radius: var(--radius-tile)" aria-hidden="true"></span>
+          <span class="ui-skel" style="flex: 1; height: 56px; border-radius: var(--radius-tile)" aria-hidden="true"></span>
+        </div>
+      </section>
+    </main>
+    <nav id="tabbar"></nav>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script src="ui.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+  <script>
+    function greeting() {
+      const h = new Date().getHours();
+      return h < 5 ? 'Good evening' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+    }
+
+    function heroFor(b, today) {
+      const players = `${b.players} player${b.players === 1 ? '' : 's'}`;
+      const where = b.kind === 'TABLE' ? [b.table, b.area, players].filter(Boolean).join(' · ')
+        : b.kind === 'LESSON' ? `with ${b.coach || 'your coach'} · ${b.where}` : b.where;
+      const token = App.tokenFor(b.code);
+      const pass = `confirmed.html?${new URLSearchParams({ code: b.code, view: 'pass', ...(token ? { token } : {}) })}`;
+      return `
+        <div class="ui-hero__top">
+          <span class="ui-eyebrow" id="heroLabel">Next up · ${UI.esc(App.relativeDay(b.date, today))}</span>
+          <span class="ui-badge ui-badge--on-navy">${b.status === 'checked_in' ? 'Checked in' : 'Confirmed'}</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: var(--space-1)">
+          <span class="ui-hero__time">${UI.esc(App.range(b.start, b.end))}</span>
+          <span class="ui-hero__meta">${UI.esc(b.kind === 'TABLE' ? where : `${b.title} · ${where}`)}</span>
+        </div>
+        <div class="ui-hero__actions">
+          ${UI.button({ label: 'Check-in pass', variant: 'inverse', iconLeft: 'qr', href: pass })}
+          ${UI.button({ label: 'Manage', variant: 'outline-on-navy', href: 'bookings.html' })}
+        </div>`;
+    }
+
+    const emptyHero = `
+      <span class="ui-hero__ball" aria-hidden="true"></span>
+      <span class="ui-eyebrow" id="heroLabel">Next up</span>
+      <div style="display: flex; flex-direction: column; gap: var(--space-1)">
+        <span class="ui-hero__time">Nothing booked</span>
+        <span class="ui-hero__meta">Tables open today from 30 minutes.</span>
+      </div>
+      <div class="ui-hero__actions" style="grid-template-columns: 1fr">${UI.button({ label: 'Book a table', variant: 'inverse', iconLeft: 'table', href: 'book.html' })}</div>`;
+
+    const guestHero = `
+      <span class="ui-hero__ball" aria-hidden="true"></span>
+      <span class="ui-eyebrow" id="heroLabel">Members play for less</span>
+      <div style="display: flex; flex-direction: column; gap: var(--space-1)">
+        <span class="ui-hero__time" style="font-size: var(--fs-h2)">Up to 30% off every table</span>
+        <span class="ui-hero__meta">Book further ahead, use table credits and join open play.</span>
+      </div>
+      <div class="ui-hero__actions">
+        ${UI.button({ label: 'Create account', variant: 'inverse', href: 'signup.html' })}
+        ${UI.button({ label: 'Log in', variant: 'outline-on-navy', href: 'login.html' })}
+      </div>`;
+
+    async function nextBooking(user) {
+      if (user) return (await App.call('/api/my/bookings')).upcoming[0] || null;
+      const rows = await Promise.all(App.guestBookings().map(g => App.call(App.withToken(`/api/reservations/${g.code}`, g.token)).catch(() => null)));
+      return rows.filter(b => b && b.upcoming).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))[0] || null;
+    }
+
+    (async () => {
+      $('#greeting').textContent = greeting();
+      const user = await Auth.me().catch(() => null);
+      App.tabbar('home', { guest: !user });
+      $('#name').textContent = user ? firstName(user.name) : 'Welcome';
+      if (user) {
+        $('#plan').hidden = false;
+        $('#plan').textContent = user.plan.id === 'dropin' ? 'Drop-in' : user.plan.status === 'active' ? `${user.plan.name} member` : `${user.plan.name} · pending`;
+        $('#bell').hidden = false;
+        App.call('/api/notifications/unread').then(r => {
+          $('#bellDot').hidden = !r.count;
+          $('#bell').setAttribute('aria-label', r.count ? `Notifications, ${r.count} unread` : 'Notifications');
+        }).catch(() => {});
+      } else {
+        $('#membershipLink').href = 'signup.html';
+      }
+
+      const [config, next] = await Promise.all([api('/api/config').catch(() => null), nextBooking(user).catch(() => null)]);
+      $('#hero').innerHTML = next ? heroFor(next, config ? config.today : '') : user ? emptyHero : guestHero;
+      $('#hero').hidden = false;
+      $('#heroSkel').hidden = true;
+
+      try {
+        const free = await App.call('/api/tables/free-today');
+        $('#free').innerHTML = free.length
+          ? free.map(s => `<a class="ui-freeslot" href="book.html?start=${s.time}"><b>${s.time}</b><span>${s.free} free</span></a>`).join('')
+          : '<p class="ui-small ui-muted">No free tables left today. <a class="ui-link" href="book.html">Book another day</a></p>';
+      } catch {
+        $('#free').innerHTML = '<p class="ui-small ui-muted">Couldn\'t load today\'s tables.</p>';
+      }
+      $('#screen').removeAttribute('aria-busy');
+      App.showFlash();
+    })();
+  </script>
+</body>
+</html>

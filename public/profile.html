@@ -61,13 +61,7 @@
       <button type="button" class="ui-logout" id="logout">Log out</button>
     </main>
 
-    <nav class="ui-tabbar" aria-label="Main">
-      <a class="ui-tab" aria-disabled="true"><span data-ui-icon="home"></span>Home</a>
-      <a class="ui-tab" href="index.html"><span data-ui-icon="table"></span>Tables</a>
-      <a class="ui-tab" aria-disabled="true"><span data-ui-icon="coach"></span>Lessons</a>
-      <a class="ui-tab" aria-disabled="true"><span data-ui-icon="calendar"></span>Bookings</a>
-      <a class="ui-tab" href="profile.html" aria-current="page"><span data-ui-icon="profile"></span>Profile</a>
-    </nav>
+    <nav id="tabbar"></nav>
   </div>
 
   <div class="ui-sheet" id="rules" role="dialog" aria-modal="true" aria-labelledby="rulesTitle" hidden>
@@ -82,6 +76,7 @@
   <script src="common.js"></script>
   <script src="ui.js"></script>
   <script src="auth.js"></script>
+  <script src="app.js"></script>
   <script>
     let user = null;
     let config = null;
@@ -114,6 +109,7 @@
       $('#loadError').hidden = true;
       try {
         user = await Auth.requireUser();
+        App.tabbar('profile');
         config = await api('/api/config');
         render();
       } catch (err) {

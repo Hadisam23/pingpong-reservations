@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>My bookings · Rally Club</title>
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+</head>
+<body class="ui-app">
+  <div class="ui-shell">
+    <main class="ui-screen ui-screen--app" aria-labelledby="title" id="screen" aria-busy="true">
+      <h1 class="ui-title" id="title">My bookings</h1>
+      <div id="tabs"></div>
+
+      <div class="ui-credits" id="credits" hidden>
+        <div class="ui-stat ui-stat--navy"><span class="ui-stat__label">Table credits</span><span class="ui-stat__value"><span id="creditTable"></span> <span class="ui-stat__unit">left</span></span></div>
+        <div class="ui-stat"><span class="ui-stat__label">Lesson pack</span><span class="ui-stat__value"><span id="creditPack"></span> <span class="ui-stat__unit" id="creditPackOf"></span></span></div>
+      </div>
+
+      <div class="ui-list" id="list" role="tabpanel" aria-labelledby="title">
+        <span class="ui-skel ui-skel--card" aria-hidden="true"></span>
+        <span class="ui-skel ui-skel--card" aria-hidden="true"></span>
+        <span class="ui-skel ui-skel--card" aria-hidden="true"></span>
+      </div>
+
+      <p class="ui-small ui-muted" id="guestNote" hidden>Booked as a guest on another device? <a class="ui-link" href="manage.html">Find a booking</a> with its code, or <a class="ui-link" href="login.html?next=bookings.html">log in</a>.</p>
+
+      <div class="ui-empty ui-error" role="alert" id="loadError" hidden>
+        <span class="ui-empty__icon"><span data-ui-icon="alert"></span></span>
+        <span class="ui-empty__title">Couldn't load your bookings</span>
+        <span class="ui-empty__text" id="loadErrorText"></span>
+        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" id="retry">Try again</button>
+      </div>
+    </main>
+    <nav id="tabbar"></nav>
+  </div>
+
+  <div class="ui-sheet" id="cancelSheet" role="dialog" aria-modal="true" aria-labelledby="cancelTitle" hidden>
+    <div class="ui-sheet__panel">
+      <h2 class="ui-h2" id="cancelTitle">Cancel this booking?</h2>
+      <p class="ui-body ui-muted" id="cancelText"></p>
+      <button type="button" class="ui-btn ui-btn--danger ui-btn--lg ui-btn--block" id="cancelYes">Cancel booking</button>
+      <button type="button" class="ui-btn ui-btn--ghost" id="cancelNo">Keep it</button>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script src="ui.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+  <script>
+    const state = { user: null, tab: App.param('tab') === 'past' ? 'past' : 'upcoming', data: null, cancelling: null };
+    const KIND = { TABLE: ['Table', 'table'], LESSON: ['Lesson', 'lesson'], CLASS: ['Group', 'lesson'] };
+    const STATUS = { cancelled: 'Cancelled', no_show: 'No-show', checked_in: 'Checked in' };
+
+    function title(b) {
+      if (b.kind === 'TABLE') return `Table · ${b.start}–${b.end}`;
+      if (b.kind === 'LESSON') return `${b.title} · ${b.duration} min`;
+      return b.title;
+    }
+    function meta(b) {
+      let m = b.kind === 'TABLE' ? `${b.where} · ${b.players} player${b.players === 1 ? '' : 's'}`
+        : b.kind === 'LESSON' ? `with ${b.coach || 'your coach'} · ${b.start}`
+        : `${b.start}–${b.end}${b.level ? ` · ${b.level}` : ''}`;
+      if (STATUS[b.status]) m += ` · ${STATUS[b.status]}${b.status === 'cancelled' && b.refunded ? ', refunded' : ''}`;
+      return m;
+    }
+    const tokenOf = b => (state.user ? null : App.tokenFor(b.code));
+    const passUrl = b => `confirmed.html?${new URLSearchParams({ code: b.code, ...(tokenOf(b) ? { token: tokenOf(b) } : {}), ...(b.upcoming ? { view: 'pass' } : {}) })}`;
+
+    function card(b) {
+      const [label, tone] = KIND[b.kind] || KIND.TABLE;
+      const p = App.dayParts(b.date);
+      let actions = '';
+      if (state.tab === 'upcoming') {
+        actions = `<div class="ui-booking__actions">
+          ${b.kind === 'TABLE' ? `<button type="button" class="ui-btn ui-btn--secondary" data-move="${b.code}">Reschedule</button>` : ''}
+          ${b.canCancel ? `<button type="button" class="ui-btn ui-btn--danger" data-cancel="${b.code}">Cancel</button>` : ''}
+        </div>`;
+      } else if (b.kind === 'TABLE') {
+        actions = `<div class="ui-booking__actions"><a class="ui-btn ui-btn--primary" href="book.html?${new URLSearchParams({ duration: b.duration, area: b.areaId || '' })}">Book again</a></div>`;
+      }
+      return `<article class="ui-card ui-booking${b.status === 'cancelled' ? ' ui-booking--muted' : ''}">
+        <a class="ui-booking__row" href="${passUrl(b)}" aria-label="${UI.esc(`${title(b)}, ${App.longDay(b.date)}. ${b.upcoming ? 'Open check-in pass' : 'Open details'}`)}">
+          <span class="ui-dateblock" aria-hidden="true"><span class="ui-dateblock__dow">${p.dow}</span><span class="ui-dateblock__num">${p.num}</span></span>
+          <span class="ui-booking__text"><span class="ui-booking__title">${UI.esc(title(b))}</span><span class="ui-booking__meta">${UI.esc(meta(b))}</span></span>
+          <span class="ui-badge ui-badge--${tone}">${label}</span>
+        </a>
+        ${actions}
+      </article>`;
+    }
+
+    function render() {
+      const d = state.data;
+      const list = d[state.tab];
+      $('#credits').hidden = !state.user;
+      if (state.user) {
+        $('#creditTable').textContent = d.credits.table;
+        $('#creditPack').textContent = d.credits.pack.total ? d.credits.pack.left : 0;
+        $('#creditPackOf').textContent = d.credits.pack.total ? `of ${d.credits.pack.total}` : 'none yet';
+      }
+      $('#list').innerHTML = list.length ? list.map(card).join('') : `
+        <div class="ui-empty">
+          <span class="ui-empty__icon">${UI.icon('calendar')}</span>
+          <span class="ui-empty__title">${state.tab === 'upcoming' ? 'No upcoming bookings' : 'No past bookings yet'}</span>
+          <span class="ui-empty__text">${state.tab === 'upcoming' ? 'Grab a table: it takes less than a minute.' : 'Your games will show up here after you play.'}</span>
+          ${state.tab === 'upcoming' ? UI.button({ label: 'Book a table', size: 'sm', href: 'book.html' }) : ''}
+        </div>`;
+      $('#guestNote').hidden = !!state.user;
+      $('#screen').removeAttribute('aria-busy');
+    }
+
+    async function load() {
+      $('#loadError').hidden = true;
+      try {
+        if (state.user) {
+          state.data = await App.call('/api/my/bookings');
+        } else {
+          // Guests: the bookings made on this device
+          const rows = (await Promise.all(App.guestBookings().map(g =>
+            App.call(App.withToken(`/api/reservations/${g.code}`, g.token)).catch(() => null)))).filter(Boolean);
+          const order = (a, b) => (a.date + a.start).localeCompare(b.date + b.start);
+          state.data = { upcoming: rows.filter(b => b.upcoming).sort(order), past: rows.filter(b => !b.upcoming).sort(order).reverse() };
+        }
+        render();
+      } catch (err) {
+        $('#list').innerHTML = '';
+        $('#loadErrorText').textContent = err.message;
+        $('#loadError').hidden = false;
+      }
+    }
+
+    // ---------- reschedule & cancel ----------
+    const find = c => state.data.upcoming.find(b => b.code === c);
+    $('#list').addEventListener('click', e => {
+      const move = e.target.closest('[data-move]');
+      if (move) {
+        const b = find(move.dataset.move);
+        if (!b.canReschedule) {
+          UI.toast(`Bookings can be moved up to ${b.cancellation.hours} h before the start.`, { kind: 'error' });
+          return;
+        }
+        location.href = `book.html?${new URLSearchParams({ reschedule: b.code, date: b.date, start: b.start, area: b.areaId, ...(tokenOf(b) ? { token: tokenOf(b) } : {}) })}`;
+      }
+      const cancel = e.target.closest('[data-cancel]');
+      if (cancel) openCancel(find(cancel.dataset.cancel), cancel);
+    });
+
+    function openCancel(b, opener) {
+      state.cancelling = { b, opener };
+      const money = b.paymentMethod === 'CREDIT' ? 'your table credit back' : b.price > 0 ? 'a full refund to your card' : null;
+      $('#cancelText').textContent = b.refundable
+        ? `${title(b)} on ${App.longDay(b.date)}. ${money ? `You'll get ${money}.` : 'Nothing was charged.'}`
+        : `It's less than ${b.cancellation.hours} h before the start, so this booking won't be refunded. The table goes back to other players.`;
+      $('#cancelSheet').hidden = false;
+      $('#cancelNo').focus();
+    }
+    const closeCancel = () => {
+      $('#cancelSheet').hidden = true;
+      if (state.cancelling && document.contains(state.cancelling.opener)) state.cancelling.opener.focus();
+    };
+    $('#cancelNo').addEventListener('click', closeCancel);
+    $('#cancelSheet').addEventListener('click', e => { if (e.target.id === 'cancelSheet') closeCancel(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#cancelSheet').hidden) closeCancel(); });
+    $('#cancelYes').addEventListener('click', async () => {
+      const { b } = state.cancelling;
+      UI.setLoading($('#cancelYes'), true);
+      try {
+        const res = await App.call(`/api/reservations/${b.code}/cancel`, { method: 'POST', body: { token: tokenOf(b) || undefined } });
+        $('#cancelSheet').hidden = true;
+        UI.toast(res.refunded ? 'Cancelled. Your refund is on its way.' : 'Booking cancelled.', { kind: 'success' });
+        await load();
+        $('#title').focus();
+      } catch (err) {
+        UI.toast(err.message, { kind: 'error' });
+      } finally {
+        UI.setLoading($('#cancelYes'), false);
+      }
+    });
+
+    (async () => {
+      state.user = await Auth.me().catch(() => null);
+      App.tabbar('bookings', { guest: !state.user });
+      $('#title').setAttribute('tabindex', '-1');
+      UI.segmented($('#tabs'), {
+        tabs: true, label: 'Bookings', value: state.tab,
+        options: [{ value: 'upcoming', label: 'Upcoming' }, { value: 'past', label: 'Past' }],
+        onChange: v => { state.tab = v; if (state.data) render(); },
+      });
+      App.showFlash();
+      load();
+    })();
+    $('#retry').addEventListener('click', load);
+  </script>
+</body>
+</html>

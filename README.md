@@ -183,6 +183,47 @@ New times are stored in UTC; table bookings keep the club's local date and minut
 
 Names, prices and schedules are placeholders.
 
+## Table booking (Phase 4)
+
+The app opens on **Home** (signed in) or **Welcome** (guests). A tab bar (Home · Tables · Lessons ·
+Bookings · Profile) stays on every screen after sign-in, and for guests too.
+
+| Screen | What it does |
+|---|---|
+| `home.html` | Next booking with its check-in pass, quick actions, free tables today |
+| `book.html` | Date strip (limited by your plan's booking window), 30/60/90 min, start times (peak / full), Main hall (auto-assign) or Private room, live price |
+| `checkout.html` | 10-minute hold with a countdown, players, split the cost, card / table credit / included in Pro, promo code, price breakdown, cancellation policy |
+| `confirmed.html` | Ticket with a signed QR check-in code, Add to calendar (.ics), Invite friends |
+| `bookings.html` | Upcoming / Past, credit counters, Reschedule, Cancel, Book again |
+| `pay.html` | Pay-your-share link for split bookings |
+
+Rules (enforced on the server):
+
+- **No double booking.** Every path (app, website, front desk) checks one occupancy source:
+  confirmed bookings, live holds, class sessions and maintenance blocks, inside an `IMMEDIATE`
+  SQLite transaction.
+- **Holds.** Continue reserves the lowest-numbered free table for 10 minutes. Expired holds are
+  ignored and released by a background job (every minute).
+- **Price** = price rule for the duration (peak/off-peak) − plan discount − promo. Pro plays
+  off-peak tables free. One table credit covers a booking up to 60 min.
+- **Cancel** until the start; full refund (card or credit) until 24 h before
+  (`cancelCutoffMinutes`). **Reschedule** = move to a free time up to 24 h before, same price.
+- **Split the cost:** you pay your share now, the others get a pay link; 2 h before the start the
+  unpaid shares are charged to you.
+- **Check-in code:** HMAC-signed token (booking, player, expiry = end time) in the QR code.
+  Not checked in 15 min after the start → no-show.
+
+**Payments.** Without keys the app runs in **demo mode**: card payments succeed with the test card
+`4242 4242 4242 4242`. Set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` (test mode) to use Stripe
+Checkout; point a Stripe webhook at `/api/stripe/webhook` (`checkout.session.completed`,
+`checkout.session.expired`).
+
+API: `GET /api/tables/availability`, `GET /api/tables/free-today`, `POST /api/holds`,
+`GET|DELETE /api/holds/:code`, `POST /api/holds/:code/quote|checkout`, `GET /api/my/bookings`,
+`GET /api/reservations/:code` (+ `qrSvg`), `POST /api/reservations/:code/cancel|reschedule`,
+`GET /api/reservations/:code/calendar.ics`, `GET|POST /api/shares/:token(/pay)`. Guests pass the
+booking's `token` instead of a session.
+
 ## Project layout
 
 ```

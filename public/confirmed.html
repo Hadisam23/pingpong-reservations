@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0B1F3A">
+  <title>You're booked · Rally Club</title>
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+</head>
+<body class="ui-app ui-page--navy">
+  <div class="ui-shell">
+    <main class="ui-screen ui-confirmed" aria-labelledby="title" aria-busy="true" id="screen">
+      <div class="ui-confirmed__ring" aria-hidden="true"></div>
+      <div class="ui-confirmed__head">
+        <div class="ui-confirmed__check" aria-hidden="true" id="checkIcon"><span data-ui-icon="check"></span></div>
+        <h1 class="ui-h1" id="title">Confirming…</h1>
+        <p class="ui-confirmed__lede" id="lede">&nbsp;</p>
+      </div>
+
+      <section class="ui-ticket" aria-label="Booking details" id="ticket">
+        <div class="ui-ticket__grid">
+          <div><span class="ui-ticket__k">Date</span><div class="ui-ticket__v" id="tDate"><span class="ui-skel ui-skel--text" style="width: 80%"></span></div></div>
+          <div><span class="ui-ticket__k">Time</span><div class="ui-ticket__v" id="tTime"><span class="ui-skel ui-skel--text" style="width: 80%"></span></div></div>
+          <div><span class="ui-ticket__k">Where</span><div class="ui-ticket__v" id="tWhere"><span class="ui-skel ui-skel--text" style="width: 60%"></span></div></div>
+          <div><span class="ui-ticket__k">Booking</span><div class="ui-ticket__v" id="tCode"><span class="ui-skel ui-skel--text" style="width: 60%"></span></div></div>
+        </div>
+        <div class="ui-ticket__tear" aria-hidden="true"></div>
+        <div class="ui-ticket__qr ui-ticket__qr--loading" id="qr" role="img" aria-label="Check-in QR code"></div>
+        <span class="ui-ticket__note" id="qrNote">Scan at the door to check in</span>
+      </section>
+
+      <div class="ui-screen__spacer"></div>
+
+      <div class="ui-confirmed__actions" id="actions" hidden>
+        <button type="button" class="ui-btn ui-btn--outline-on-navy" id="calendar"><span data-ui-icon="calendar"></span>Add to calendar</button>
+        <button type="button" class="ui-btn ui-btn--outline-on-navy" id="invite"><span data-ui-icon="share"></span>Invite friends</button>
+      </div>
+      <a class="ui-btn ui-btn--inverse ui-btn--lg ui-btn--block ui-confirmed__done" href="home.html" id="done">Done</a>
+    </main>
+    <nav id="tabbar"></nav>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script src="ui.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+  <script>
+    const code = App.param('code');
+    const token = App.param('token') || (code && App.tokenFor(code));
+    const asPass = App.param('view') === 'pass';
+    let booking = null;
+    let config = null;
+
+    const serverUrl = () => API_BASE || location.origin;
+
+    function render() {
+      const b = booking;
+      const live = ['confirmed', 'checked_in'].includes(b.status);
+      $('#title').textContent = b.status === 'cancelled' ? 'Booking cancelled'
+        : b.status === 'checked_in' ? "You're checked in" : asPass ? 'Check-in pass' : "You're booked!";
+      $('#lede').textContent = b.status === 'cancelled' ? (b.refunded ? 'You get a full refund to the original payment method.' : 'This booking was cancelled.')
+        : asPass ? 'Show this code at the front desk when you arrive.'
+        : 'We sent the details to your email and will remind you 2 hours before.';
+      $('#checkIcon').hidden = !live;
+      document.title = `${$('#title').textContent} · Rally Club`;
+
+      $('#tDate').textContent = App.longDay(b.date);
+      $('#tTime').textContent = App.range(b.start, b.end);
+      $('#tWhere').textContent = b.where;
+      $('#tCode').textContent = `#RC-${b.code}`;
+      $('#qr').classList.remove('ui-ticket__qr--loading');
+      $('#qr').innerHTML = b.qrSvg || '';
+      $('#qr').hidden = !b.qrSvg;
+      $('#qrNote').textContent = b.status === 'checked_in' ? 'Checked in. Enjoy your game!' : live ? 'Scan at the door to check in' : '';
+      $('#actions').hidden = !live;
+      $('#screen').removeAttribute('aria-busy');
+    }
+
+    async function load() {
+      try {
+        booking = await App.call(App.withToken(`/api/reservations/${encodeURIComponent(code)}`, token));
+      } catch (err) {
+        $('#title').textContent = "Couldn't load this booking";
+        $('#lede').textContent = err.message;
+        $('#checkIcon').hidden = true;
+        $('#ticket').hidden = true;
+        $('#screen').removeAttribute('aria-busy');
+        return;
+      }
+      // Back from Stripe before the webhook arrived: wait a moment for it
+      if (booking.status === 'held' && App.param('paid')) {
+        $('#title').textContent = 'Confirming your payment…';
+        setTimeout(load, 2000);
+        return;
+      }
+      render();
+    }
+
+    $('#calendar').addEventListener('click', () => {
+      const url = `${serverUrl()}/api/reservations/${booking.code}/calendar.ics?token=${encodeURIComponent(booking.manageToken)}`;
+      if (isNativeApp) window.open(url, '_blank');
+      else location.href = url;
+    });
+
+    $('#invite').addEventListener('click', async () => {
+      const b = booking;
+      const center = (config && config.centerName) || 'Rally Club';
+      let text = `Join me for table tennis at ${center}: ${App.longDay(b.date)}, ${App.range(b.start, b.end)}, ${b.where}.`;
+      const unpaid = (b.shares || []).filter(s => s.payToken && !s.paid);
+      if (unpaid.length) {
+        text += '\n\nYour share of the table:\n' + unpaid.map(s => `${s.name || 'Player'} (${App.price(s.amount, b.currency)}): ${serverUrl()}/pay.html?t=${s.payToken}`).join('\n');
+      }
+      try {
+        if (canShare()) await shareLink({ title: `Table at ${center}`, text });
+        else {
+          await navigator.clipboard.writeText(text);
+          UI.toast('Invite copied. Paste it in a message.', { kind: 'success' });
+        }
+      } catch (err) {
+        if (err && err.name !== 'AbortError' && !/cancel/i.test(err.message || '')) UI.toast("Couldn't share the invite", { kind: 'error' });
+      }
+    });
+
+    (async () => {
+      const user = await Auth.me().catch(() => null);
+      App.tabbar(asPass ? 'home' : 'bookings', { guest: !user });
+      if (asPass) $('#done').href = 'home.html';
+      api('/api/config').then(c => { config = c; }).catch(() => {});
+      if (!code) {
+        $('#title').textContent = 'No booking selected';
+        $('#ticket').hidden = true;
+        $('#checkIcon').hidden = true;
+        return;
+      }
+      load();
+    })();
+  </script>
+</body>
+</html>

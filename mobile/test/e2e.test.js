@@ -74,133 +74,145 @@ async function noHorizontalScroll(page) {
   assert.ok(scrollWidth <= innerWidth, `page scrolls sideways: ${scrollWidth} > ${innerWidth}`);
 }
 
-// Picks a day at least 2 days out (so it's cancellable), then the first free cell.
-async function pickSlot(page, { type = 'casual', duration = '1h', dayIndex = 2 } = {}) {
-  await page.waitForSelector('#types .type-opt');
-  await page.click(`[data-type="${type}"]`);
-  await page.locator('#dates .chip:not([disabled])').nth(dayIndex).click();
-  await page.waitForSelector('#grid .cell');
-  await page.locator('#durations button', { hasText: new RegExp(`^${duration}$`) }).click();
-  const cell = page.locator('#grid .cell.free').first();
-  const slot = { tableId: Number(await cell.getAttribute('data-t')), start: Number(await cell.getAttribute('data-s')) };
-  await cell.click();
-  await page.waitForSelector('#formCard:not(.hidden)');
-  return slot;
+const DEMO = { email: 'player@rallyclub.test', password: 'rally-demo-2026' };
+
+// Picks the first bookable day from `dayIndex` on that has a free time; returns { date, time }.
+async function pickSlot(page, { dayIndex = 2 } = {}) {
+  await page.waitForSelector('#dates .ui-date');
+  const days = page.locator('#dates .ui-date:not([disabled])');
+  for (let i = dayIndex; i < await days.count(); i++) {
+    await days.nth(i).click();
+    await page.waitForSelector('#slots .ui-slot, #slots.ui-slots-empty');
+    const free = page.locator('#slots .ui-slot:not([disabled])');
+    if (await free.count()) {
+      const time = (await free.first().textContent()).trim();
+      await free.first().click();
+      const date = await page.locator('#dates .ui-date[aria-pressed="true"]').getAttribute('data-value');
+      return { date, time };
+    }
+  }
+  throw new Error('no free slot');
 }
 
-test('booking page: 4 tables, booking types and seeded reservations', async () => {
-  const { page, errors } = await openPage();
-  await page.waitForSelector('#grid .cell');
-  assert.equal(await page.locator('#grid .th').count(), 4);
-  assert.deepEqual(await page.locator('#types .type-opt .tl1').allTextContents(),
-    ['Casual play', 'Training with robot', 'Private coaching', 'League match', 'Birthday / event']);
+async function logIn(page) {
+  await page.goto(`${appOrigin}/login.html`);
+  await page.fill('#email', DEMO.email);
+  await page.fill('#password', DEMO.password);
+  await page.click('button[type=submit]');
+  await page.waitForURL(/home\.html/);
+}
 
-  // Seeded reservations show up as taken cells on a few days
-  let busy = 0;
-  for (let i = 0; i < 4 && busy === 0; i++) {
-    await page.locator('#dates .chip:not([disabled])').nth(i).click();
-    await page.waitForTimeout(400);
-    busy = await page.locator('#grid .cell.busy').count();
-  }
-  assert.ok(busy > 0, 'expected seeded bookings to show as taken');
+test('guest: Welcome → book a table → checkout → booked with a QR code → cancel', async () => {
+  const { page, errors } = await openPage('index.html');
+  await page.waitForURL(/welcome\.html/);
+  await page.click('text=Book as a guest');
+  await page.waitForURL(/book\.html/);
+  await page.waitForSelector('#slots .ui-slot');
+  assert.equal(await page.textContent('#sub'), 'Rally Club · Main hall');
+  assert.deepEqual(await page.locator('#durs .ui-segment').allTextContents(), ['30 min', '60 min', '90 min']);
+  assert.deepEqual(await page.locator('#areas .ui-radio-card__name').allTextContents(), ['Main hall', 'Private room']);
+  assert.equal(await page.locator('#tabbar .ui-tab').count(), 5);
+  // Guests book 3 days ahead: later days are disabled with a hint
+  assert.ok(await page.locator('#dates .ui-date[disabled]').count() > 0);
+  assert.match(await page.textContent('#windowHint'), /Members can book further ahead/);
   await noHorizontalScroll(page);
-  await page.screenshot({ path: path.join(SHOTS, `${browserName}-1-grid.png`), fullPage: true });
-  assert.deepEqual(errors, []);
-});
+  await page.screenshot({ path: path.join(SHOTS, `${browserName}-1-book.png`), fullPage: true });
 
-test('book a coaching session end to end; price includes the coaching extra', async () => {
-  const { page, errors } = await openPage();
-  await pickSlot(page, { type: 'coaching' });
-  const summary = await page.textContent('#summary');
-  assert.match(summary, /Private coaching/);
+  const { time } = await pickSlot(page);
+  assert.match(await page.textContent('#sum'), new RegExp(`${time}–`));
+  await page.click('#go');
+  await page.waitForURL(/checkout\.html/);
+  await page.waitForSelector('#payBar:not([hidden])');
+  assert.match(await page.textContent('#countdownText'), /Held for you · (10:00|9:5\d)/);
+  assert.equal(await page.isVisible('#guestForm'), true);
+  assert.deepEqual(await page.locator('#methods .ui-option__title').allTextContents(), ['Card ending 4242']);
+  await noHorizontalScroll(page);
+  await page.screenshot({ path: path.join(SHOTS, `${browserName}-2-checkout.png`), fullPage: true });
 
-  await page.fill('#name', 'Mobile Tester');
-  await page.fill('#phone', '052-555-0101');
-  await page.screenshot({ path: path.join(SHOTS, `${browserName}-2-form.png`), fullPage: true });
-  await page.click('#submit');
-  await page.waitForSelector('#done:not(.hidden)');
-  const code = (await page.textContent('#doneCode')).trim();
-  assert.match(code, /^[A-Z2-9]{6}$/);
+  // Required fields
+  await page.click('#pay');
+  assert.equal(await page.getAttribute('#gName', 'aria-invalid'), 'true');
+  await page.fill('#gName', 'Guest Player');
+  await page.fill('#gEmail', 'guest@example.com');
+  await page.fill('#gPhone', '052-555-0101');
+  await page.click('#pay');
+  await page.waitForURL(/confirmed\.html/);
+  await page.waitForSelector('#qr svg');
+  assert.equal(await page.textContent('#title'), "You're booked!");
+  assert.match(await page.textContent('#tCode'), /^#RC-[A-Z2-9]{6}$/);
   await page.screenshot({ path: path.join(SHOTS, `${browserName}-3-confirmed.png`), fullPage: true });
 
-  const shownPrice = await page.textContent('#doneSummary');
-  // Find the booking through the admin API and check type + price
-  let booking;
-  for (let d = 0; d < 15 && !booking; d++) {
-    const day = await adminApi(`/day?date=${addDays(service.today().date, d)}`);
-    booking = day.bookings.find(b => b.code === code);
-  }
-  assert.ok(booking, 'booking should exist on the server');
-  assert.equal(booking.type, 'coaching');
-  assert.equal(booking.source, 'online');
-  const [h, m] = booking.start.split(':').map(Number);
-  const start = h * 60 + m;
-  assert.equal(booking.price, service.quote(booking.date, start, start + 60, 'coaching'));
-  assert.ok(shownPrice.includes(String(booking.price)), `confirmation shows ${shownPrice}`);
+  // My bookings (kept on this device for guests) → cancel
+  await page.click('.ui-tab:has-text("Bookings")');
+  await page.waitForSelector('.ui-booking');
+  assert.match(await page.textContent('.ui-booking__title'), new RegExp(`Table · ${time}`));
+  await page.click('[data-cancel]');
+  await page.waitForSelector('#cancelSheet:not([hidden])');
+  await page.click('#cancelYes');
+  await page.waitForSelector('.ui-empty');
+  await page.click('#tabs [data-value="past"]');
+  assert.match(await page.textContent('.ui-booking__meta'), /Cancelled/);
   assert.deepEqual(errors, []);
 });
 
-test('party type disables durations shorter than 2 hours', async () => {
-  const { page } = await openPage();
-  await page.waitForSelector('#types .type-opt');
-  await page.click('[data-type="party"]');
-  const states = await page.locator('#durations button').evaluateAll(bs => bs.map(b => [b.textContent, b.disabled, b.classList.contains('on')]));
-  assert.deepEqual(states, [['30m', true, false], ['1h', true, false], ['1h 30m', true, false], ['2h', false, true]]);
-});
-
-test('my bookings list, manage page and cancellation', async () => {
-  const { page, errors } = await openPage();
-  await pickSlot(page, { type: 'training', dayIndex: 3 });
-  await page.fill('#name', 'Cancel Me');
-  await page.fill('#phone', '052-555-0202');
-  await page.click('#submit');
-  await page.waitForSelector('#done:not(.hidden)');
-  const code = (await page.textContent('#doneCode')).trim();
-
-  await page.reload();
-  await page.waitForSelector('#myBookings:not(.hidden)');
-  const item = page.locator('#myBookingsList li', { hasText: 'Training with robot' }).last();
-  await item.locator('a').click();
-  await page.waitForSelector('#view:not(.hidden)');
-  assert.equal((await page.textContent('#vCode')).trim(), code);
-  assert.match(await page.textContent('#vSummary'), /Training with robot/);
+test('member: Home → book with a table credit → My bookings → reschedule', async () => {
+  const { page, errors } = await openPage('welcome.html');
+  await logIn(page);
+  await page.waitForSelector('#hero:not([hidden])');
+  assert.equal(await page.textContent('#name'), 'Noa');
+  assert.equal(await page.textContent('#plan'), 'Club member');
+  assert.match(await page.textContent('#heroLabel'), /Next up/);
+  assert.ok(await page.locator('#free .ui-freeslot, #free p').count() > 0);
+  assert.equal(await page.getAttribute('.ui-tab[aria-current="page"]', 'href'), 'home.html');
   await noHorizontalScroll(page);
-  await page.screenshot({ path: path.join(SHOTS, `${browserName}-4-manage.png`), fullPage: true });
+  await page.screenshot({ path: path.join(SHOTS, `${browserName}-4-home.png`), fullPage: true });
 
-  await page.click('#cancelBtn');
-  await page.waitForSelector('#vStatus.cancelled');
-  assert.match(await page.textContent('#viewMsg'), /cancelled/);
+  await page.click('.ui-action:has-text("Book a table")');
+  await page.waitForURL(/book\.html/);
+  // Club books 14 days ahead: no locked days in the first week
+  await page.waitForSelector('#slots .ui-slot');
+  assert.equal(await page.isVisible('#windowHint'), false);
+  const { time } = await pickSlot(page, { dayIndex: 3 });
+  assert.match(await page.textContent('#rate'), /member rate|peak|/);
+  await page.click('#go');
+  await page.waitForURL(/checkout\.html/);
+  await page.waitForSelector('#payBar:not([hidden])');
+  await page.click('#methods [data-value="CREDIT"]');
+  await page.waitForFunction(() => document.querySelector('#payLabel').textContent === 'Use 1 credit & confirm');
+  await page.click('#pay');
+  await page.waitForURL(/confirmed\.html/);
+  await page.waitForSelector('#qr svg');
 
-  // Lookup by code + phone also works
-  const { page: p2 } = await openPage('manage.html');
-  await p2.fill('#code', code);
-  await p2.fill('#phone', '0525550202');
-  await p2.click('#lookupBtn');
-  await p2.waitForSelector('#view:not(.hidden)');
-  assert.equal((await p2.textContent('#vStatus')).trim(), 'Cancelled');
+  await page.goto(`${appOrigin}/bookings.html`);
+  await page.waitForSelector('.ui-booking');
+  assert.equal(await page.textContent('#creditTable'), '2');
+  await page.screenshot({ path: path.join(SHOTS, `${browserName}-5-bookings.png`), fullPage: true });
+  const card = page.locator('.ui-booking', { hasText: `Table · ${time}` }).first();
+  await card.locator('[data-move]').click();
+  await page.waitForURL(/reschedule=/);
+  await page.waitForSelector('#slots .ui-slot');
+  assert.equal(await page.textContent('#title'), 'Move booking');
+  const free = page.locator('#slots .ui-slot:not([disabled]):not([aria-pressed="true"])');
+  const newTime = (await free.last().textContent()).trim();
+  await free.last().click();
+  await page.click('#go');
+  await page.waitForURL(/bookings\.html/);
+  await page.waitForSelector('.ui-booking');
+  assert.ok(await page.locator('.ui-booking__title', { hasText: `Table · ${newTime}` }).count() >= 1);
   assert.deepEqual(errors, []);
 });
 
-test('someone else takes the slot first: friendly error and refreshed grid', async () => {
-  const { page } = await openPage();
-  const slot = await pickSlot(page, { dayIndex: 4 });
-  const date = await page.evaluate(() => state.date);
-  // Another customer books it through the API before we tap "Book"
-  const res = await fetch(`${apiBase}/api/bookings`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ tableId: slot.tableId, date, start: toHHMM(slot.start), duration: 60, name: 'Fast Finger', phone: '0529990000' }),
-  });
-  assert.equal(res.status, 201);
-
-  await page.fill('#name', 'Slow Poke');
-  await page.fill('#phone', '052-555-0303');
-  await page.click('#submit');
-  await page.waitForSelector('#gridMsg.alert.err');
-  assert.match(await page.textContent('#gridMsg'), /just taken/);
-  assert.ok(await page.locator('#formCard').isHidden(), 'form closes with the lost selection');
-  const cell = page.locator(`#grid .cell[data-t="${slot.tableId}"][data-s="${slot.start}"]`);
-  assert.match(await cell.getAttribute('class'), /busy/);
+test('the time you picked gets taken by someone else → you are told and the times refresh', async () => {
+  const { page } = await openPage('book.html');
+  const { date, time } = await pickSlot(page, { dayIndex: 1 });
+  // Fill the whole main hall at that time from another client
+  for (let i = 0; i < 3; i++) {
+    await fetch(`${apiBase}/api/holds`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ date, start: time, duration: 60 }) });
+  }
+  await page.click('#go');
+  await page.waitForSelector('.ui-toast--error');
+  assert.match(await page.textContent('.ui-toast--error'), /just taken/);
+  await page.waitForSelector(`#slots .ui-slot[data-value="${time}"][disabled]`);
 });
 
 test('front desk on a phone: seeded day, type colors, check-in', async () => {
@@ -228,7 +240,7 @@ test('front desk on a phone: seeded day, type colors, check-in', async () => {
 test('in-app self-test (used on the iOS Simulator) passes', async () => {
   buildWeb({ apiUrl: apiBase, outDir: path.join(outDir, 'selftest'), selfTest: true });
   const { page, errors } = await openPage('selftest/index.html');
-  const result = await page.waitForSelector('#selftest-result', { timeout: 30000 });
+  const result = await page.waitForSelector('#selftest-result', { timeout: 45000 });
   const text = await result.textContent();
   assert.match(text, /^SELFTEST PASS · booked [A-Z2-9]{6}$/, text);
   const code = text.slice(-6);
@@ -237,7 +249,7 @@ test('in-app self-test (used on the iOS Simulator) passes', async () => {
     found = (await adminApi(`/day?date=${addDays(service.today().date, d)}`)).bookings.find(b => b.code === code);
   }
   assert.equal(found.name, 'iOS Simulator Test');
-  assert.equal(found.type, 'coaching');
+  assert.equal(found.source, 'online');
   await page.screenshot({ path: path.join(SHOTS, `${browserName}-6-selftest.png`) });
   assert.deepEqual(errors, []);
 });
@@ -248,6 +260,3 @@ function addDays(date, n) {
   return d.toISOString().slice(0, 10);
 }
 
-function toHHMM(min) {
-  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
-}

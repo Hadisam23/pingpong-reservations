@@ -330,6 +330,52 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    name: 'payments, split shares and promo on bookings',
+    up(db) {
+      db.exec(`
+        -- Every money movement: card (demo or Stripe), refunds are a status change on the row
+        CREATE TABLE IF NOT EXISTS payments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          bookingId INTEGER REFERENCES bookings(id) ON DELETE SET NULL,
+          participantId INTEGER REFERENCES booking_participants(id) ON DELETE SET NULL,
+          userId INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          kind TEXT NOT NULL,                  -- BOOKING | SHARE | REMAINDER | LESSON_PACK | MEMBERSHIP
+          provider TEXT NOT NULL,              -- demo | stripe
+          amount REAL NOT NULL,
+          currency TEXT NOT NULL,
+          status TEXT NOT NULL,                -- PENDING | SUCCEEDED | FAILED | REFUNDED | CANCELED
+          providerRef TEXT,                    -- Stripe Checkout session id
+          paymentIntent TEXT,
+          description TEXT,
+          createdAt TEXT NOT NULL,
+          updatedAt TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_payments_booking ON payments(bookingId);
+        CREATE INDEX IF NOT EXISTS idx_payments_ref ON payments(providerRef);
+      `);
+      addColumn(db, 'booking_participants', 'name', 'TEXT');
+      addColumn(db, 'booking_participants', 'payToken', 'TEXT');
+      addColumn(db, 'booking_participants', 'paidAt', 'TEXT');
+      addColumn(db, 'booking_participants', 'coveredByOrganizerAt', 'TEXT');
+      addColumn(db, 'bookings', 'basePrice', 'REAL');
+      addColumn(db, 'bookings', 'promoCode', 'TEXT');
+      addColumn(db, 'bookings', 'splitCost', 'INTEGER NOT NULL DEFAULT 0');
+      addColumn(db, 'bookings', 'email', 'TEXT');
+      addColumn(db, 'bookings', 'cancelledAt', 'TEXT');
+      addColumn(db, 'bookings', 'refundedAt', 'TEXT');
+      db.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_token ON booking_participants(payToken);
+        CREATE INDEX IF NOT EXISTS idx_bookings_hold ON bookings(status, holdExpiresAt);
+      `);
+      // A club without price rules starts from the defaults
+      if (db.prepare('SELECT COUNT(*) AS c FROM price_rules').get().c === 0) {
+        const { DEFAULT_PRICE_RULES } = require('./pricing');
+        const insert = db.prepare('INSERT INTO price_rules (durationMin, basePrice, peakPrice, peakStart, peakEnd, daysOfWeek) VALUES (?, ?, ?, ?, ?, ?)');
+        for (const r of DEFAULT_PRICE_RULES) insert.run(r.durationMin, r.basePrice, r.peakPrice, r.peakStart, r.peakEnd, JSON.stringify(r.daysOfWeek));
+      }
+    },
+  },
 ];
 
 function migrate(db) {

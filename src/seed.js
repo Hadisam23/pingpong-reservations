@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const { parseHHMM, weekday, addDays, zonedToUtc } = require('./time');
 const { hashPassword } = require('./auth');
 const { DEFAULT_PLANS } = require('./plans');
+const { DEFAULT_PRICE_RULES: PRICE_RULES } = require('./pricing');
 
 const DEMO_DOMAIN = 'rallyclub.test';
 const DEMO_PASSWORD = 'rally-demo-2026';
@@ -33,12 +34,6 @@ const TABLE_LAYOUT = [
   { number: 1, area: 'Main hall' }, { number: 2, area: 'Main hall' },
   { number: 3, area: 'Main hall' }, { number: 4, area: 'Private room' },
 ];
-
-// Price rules per duration: Sun–Thu peak from 17:00, Fri–Sat peak all day (matches the club settings).
-const PRICE_RULES = [30, 60, 90].flatMap(duration => [
-  { durationMin: duration, basePrice: duration * 40 / 60, peakPrice: duration * 60 / 60, peakStart: '17:00', peakEnd: '24:00', daysOfWeek: [0, 1, 2, 3, 4] },
-  { durationMin: duration, basePrice: duration * 60 / 60, peakPrice: duration * 60 / 60, peakStart: '00:00', peakEnd: '24:00', daysOfWeek: [5, 6] },
-]);
 
 // Coach names are sample content: replace them with the club's coaches.
 const COACHES = [

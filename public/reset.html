@@ -64,7 +64,7 @@
       try {
         await Auth.reset({ token, password: password.value });
         sessionStorage.setItem('rc.flash', 'Password updated. You are logged in.');
-        location.replace('profile.html');
+        location.replace('home.html');
       } catch (err) {
         UI.setLoading(btn, false);
         if (err.code === 'invalid_reset_link') linkBroken(err.message);

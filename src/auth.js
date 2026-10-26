@@ -251,4 +251,4 @@ function createAuth(db, { mailer, now = () => new Date() } = {}) {
   };
 }
 
-module.exports = { createAuth, hashPassword, verifyPassword, SKILL_LEVELS };
+module.exports = { createAuth, hashPassword, verifyPassword, SKILL_LEVELS, cleanName, cleanEmail, cleanPhone };

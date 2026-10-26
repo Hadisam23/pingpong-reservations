@@ -38,6 +38,7 @@
   --table-line:    rgba(255, 255, 255, 0.10);  /* the "table line" across navy cards */
   --welcome-line:  rgba(255, 255, 255, 0.14);  /* Welcome: the table's centre line */
   --welcome-net:   rgba(255, 255, 255, 0.07);  /* Welcome: the net */
+  --on-navy-ring:  rgba(255, 255, 255, 0.08);  /* Booking confirmed: the ring behind the check */
   --orange:   #F97316;   /* the ball: fills only */
   --orange-text: #C2410C;  /* orange text on white */
   --orange-200: #FED7AA;
@@ -143,6 +144,7 @@
   --space-screen: 20px;   /* screen side padding */
   --space-10: 10px;       /* the screens' 10px and 14px gaps */
   --space-14: 14px;
+  --space-18: 18px;       /* Book a table: gap between sections */
 
   /* ================= shape ================= */
   --radius-xs: 4px;       /* progress bars, tags */

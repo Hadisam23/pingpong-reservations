@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Book a table · Rally Club</title>
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+</head>
+<body class="ui-app">
+  <div class="ui-shell">
+    <main class="ui-screen ui-screen--app ui-book" aria-labelledby="title">
+      <div class="ui-screen__head">
+        <a class="ui-icon-btn" href="home.html" aria-label="Back" id="back"><span data-ui-icon="back"></span></a>
+        <div class="ui-titleblock">
+          <h1 class="ui-h2" id="title">Book a table</h1>
+          <span class="ui-titleblock__sub" id="sub">&nbsp;</span>
+        </div>
+      </div>
+
+      <div class="ui-callout" id="moveNote" hidden></div>
+
+      <div class="ui-group">
+        <div id="dates" aria-busy="true"></div>
+        <span class="ui-hint" id="windowHint" hidden></span>
+      </div>
+
+      <div class="ui-group">
+        <span class="ui-label" id="durLabel">Duration</span>
+        <div id="durs"></div>
+      </div>
+
+      <div class="ui-group">
+        <div class="ui-group__head">
+          <span class="ui-label" id="slotLabel">Start time</span>
+          <span class="ui-legend" aria-hidden="true"><span><i class="ui-legend__peak"></i>Peak</span><span><i class="ui-legend__full"></i>Full</span></span>
+        </div>
+        <div id="slots" aria-labelledby="slotLabel"></div>
+      </div>
+
+      <div class="ui-group">
+        <span class="ui-label" id="areaLabel">Table</span>
+        <div class="ui-radio-cards ui-radio-cards--2" id="areas" role="radiogroup" aria-labelledby="areaLabel"></div>
+      </div>
+
+      <div class="ui-empty ui-error" role="alert" id="loadError" hidden>
+        <span class="ui-empty__icon"><span data-ui-icon="alert"></span></span>
+        <span class="ui-empty__title">Couldn't load times</span>
+        <span class="ui-empty__text" id="loadErrorText"></span>
+        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" id="retry">Try again</button>
+      </div>
+    </main>
+
+    <div class="ui-dock">
+      <div class="ui-actionbar">
+        <div class="ui-actionbar__summary" aria-live="polite">
+          <span class="ui-actionbar__label" id="sum">Pick a start time</span>
+          <span class="ui-actionbar__price"><span id="price">–</span><span class="ui-actionbar__rate" id="rate"></span></span>
+        </div>
+        <button type="button" class="ui-btn ui-btn--primary" id="go" disabled><span id="goLabel">Continue</span><span data-ui-icon="arrow-right"></span></button>
+      </div>
+      <nav id="tabbar"></nav>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script src="ui.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+  <script>
+    const moving = App.param('reschedule');
+    const movingToken = App.param('token') || (moving && App.tokenFor(moving));
+    const state = {
+      user: null, data: null, date: App.param('date'), duration: Number(App.param('duration')) || 60,
+      area: App.param('area') || '', time: App.param('start'),
+    };
+    let durControl = null;
+
+    const skeleton = () => {
+      $('#slots').className = 'ui-slots';
+      $('#slots').innerHTML = Array.from({ length: 12 }, () => '<span class="ui-skel ui-skel--slot" aria-hidden="true"></span>').join('');
+    };
+
+    function query() {
+      const q = new URLSearchParams({ duration: state.duration });
+      if (state.date) q.set('date', state.date);
+      if (state.area) q.set('area', state.area);
+      if (moving) q.set('reschedule', moving);
+      return App.withToken(`/api/tables/availability?${q}`, movingToken);
+    }
+
+    async function load() {
+      $('#loadError').hidden = true;
+      skeleton();
+      try {
+        state.data = await App.call(query());
+        state.date = state.data.date;
+        state.area = String(state.data.area.id);
+        state.duration = state.data.duration;
+        render();
+      } catch (err) {
+        $('#loadErrorText').textContent = err.message;
+        $('#loadError').hidden = false;
+        $('#slots').innerHTML = '';
+      }
+    }
+
+    function render() {
+      const d = state.data;
+      $('#sub').textContent = `${d.centerName} · ${d.area.name}`;
+
+      UI.dateStrip($('#dates'), {
+        cls: 'ui-datestrip--scroll', label: 'Date', value: d.date,
+        days: d.days.map(x => ({ value: x.date, dow: x.dow, num: x.num, disabled: !x.bookable, aria: `${App.longDay(x.date)}${x.closed ? ', closed' : !x.bookable ? ', members only' : ''}` })),
+        onChange: v => { state.date = v; load(); },
+      });
+      $('#dates').removeAttribute('aria-busy');
+      const selected = $('#dates [aria-pressed="true"]');
+      if (selected) selected.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      const lockedOut = d.days.some(x => !x.bookable && !x.closed);
+      $('#windowHint').hidden = !lockedOut;
+      $('#windowHint').textContent = state.user
+        ? `${d.window.plan} books up to ${d.window.days} days ahead. Members can book further ahead.`
+        : `Guests book up to ${d.window.days} days ahead. Members can book further ahead.`;
+
+      if (!durControl) {
+        durControl = UI.segmented($('#durs'), {
+          label: 'Duration', value: d.duration,
+          options: d.durations.map(m => ({ value: m, label: `${m} min`, disabled: !!moving && m !== d.duration })),
+          onChange: v => { state.duration = v; load(); },
+        });
+      }
+
+      // Start times
+      const slotsEl = $('#slots');
+      if (d.closed || d.outsideWindow || !d.slots.length) {
+        slotsEl.className = 'ui-slots-empty';
+        slotsEl.innerHTML = d.closed ? '<b>Closed this day</b>Pick another day.'
+          : d.outsideWindow ? '<b>Members can book further ahead</b>Pick a day inside your booking window.'
+          : '<b>No times left today</b>Pick another day.';
+        state.time = null;
+      } else {
+        const current = d.slots.find(s => s.time === state.time && !s.full);
+        if (!current) state.time = null;
+        UI.slots(slotsEl, {
+          label: 'Start time', value: state.time,
+          slots: d.slots.map(s => ({ time: s.time, full: s.full, peak: s.peak })),
+          onChange: v => { state.time = v; summary(); },
+        });
+      }
+
+      // Area
+      $('#areas').innerHTML = d.areas.map(a => `
+        <label class="ui-radio-card ui-radio-card--compact">
+          <input type="radio" name="area" value="${a.id}" ${String(a.id) === state.area ? 'checked' : ''}>
+          <span class="ui-radio-card__body"><span class="ui-radio-card__name">${UI.esc(a.name)}</span><span class="ui-radio-card__desc">${UI.esc(a.description || `${a.tables} tables`)}</span></span>
+        </label>`).join('');
+      summary();
+    }
+
+    function summary() {
+      const d = state.data;
+      const slot = d && d.slots.find(s => s.time === state.time);
+      $('#go').disabled = !slot;
+      if (!slot) {
+        $('#sum').textContent = d && d.slots.length && d.slots.every(s => s.full) ? 'All tables are taken for this length' : 'Pick a start time';
+        $('#price').textContent = '–';
+        $('#rate').textContent = '';
+        return;
+      }
+      $('#sum').textContent = `${App.shortDay(d.date)} · ${slot.time}–${slot.end}`;
+      if (moving) {
+        $('#price').textContent = 'Same price';
+        $('#rate').textContent = '';
+        return;
+      }
+      $('#price').textContent = slot.price === 0 ? 'Included' : App.price(slot.price, d.currency);
+      $('#rate').textContent = slot.price === 0 ? 'on your plan' : d.memberRate && slot.price < slot.base ? 'member rate' : slot.peak ? 'peak' : '';
+    }
+
+    $('#areas').addEventListener('change', e => { state.area = e.target.value; load(); });
+    $('#retry').addEventListener('click', load);
+
+    $('#go').addEventListener('click', async () => {
+      const btn = $('#go');
+      UI.setLoading(btn, true);
+      try {
+        if (moving) {
+          await App.call('/api/reservations/' + encodeURIComponent(moving) + '/reschedule', {
+            method: 'POST', body: { date: state.date, start: state.time, area: Number(state.area), token: movingToken || undefined },
+          });
+          App.flash(`Moved to ${App.shortDay(state.date)} · ${state.time}`);
+          location.replace('bookings.html');
+          return;
+        }
+        const hold = await App.call('/api/holds', {
+          method: 'POST', body: { date: state.date, start: state.time, duration: state.duration, area: Number(state.area) },
+        });
+        const q = new URLSearchParams({ code: hold.code });
+        if (!state.user) q.set('token', hold.token);
+        location.href = `checkout.html?${q}`;
+      } catch (err) {
+        UI.setLoading(btn, false);
+        UI.toast(err.message, { kind: 'error' });
+        if (err.status === 409) load();
+      }
+    });
+
+    (async () => {
+      state.user = await Auth.me().catch(() => null);
+      App.tabbar('tables', { guest: !state.user });
+      if (moving) {
+        $('#title').textContent = 'Move booking';
+        $('#back').href = 'bookings.html';
+        $('#goLabel').textContent = 'Move here';
+        $('#moveNote').hidden = false;
+        $('#moveNote').textContent = 'Pick a new day and time. The length and price stay the same.';
+      }
+      load();
+    })();
+  </script>
+</body>
+</html>

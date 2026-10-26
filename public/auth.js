@@ -19,12 +19,12 @@ const Auth = (() => {
   }
 
   // Only same-site page names are allowed as a "next" target.
-  function safeNext(value, fallback = 'profile.html') {
+  function safeNext(value, fallback = 'home.html') {
     return /^[\w-]+\.html(\?[\w=&%.-]*)?$/.test(value || '') ? value : fallback;
   }
 
   function goLogin() {
-    const here = location.pathname.split('/').pop() || 'profile.html';
+    const here = location.pathname.split('/').pop() || 'home.html';
     location.replace(`login.html?next=${encodeURIComponent(safeNext(here.endsWith('.html') ? here : `${here}.html`))}`);
   }
 
@@ -45,6 +45,7 @@ const Auth = (() => {
     update: body => call('/api/me', { method: 'PATCH', body }),
     choosePlan: plan => call('/api/me/plan', { method: 'PUT', body: { plan } }),
     plans: () => call('/api/plans'),
+    call,
     async logout() {
       try { await call('/api/auth/logout', { method: 'POST' }); } finally { forget(); }
     },

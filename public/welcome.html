@@ -29,7 +29,7 @@
     <div class="ui-welcome__actions">
       <a class="ui-btn ui-btn--inverse ui-btn--lg ui-btn--block" href="signup.html">Create account</a>
       <a class="ui-btn ui-btn--outline-on-navy ui-btn--lg ui-btn--block" href="login.html">I already have an account</a>
-      <a class="ui-welcome__guest" href="index.html">Book as a guest</a>
+      <a class="ui-welcome__guest" href="book.html">Book as a guest</a>
     </div>
   </main>
 
@@ -40,7 +40,7 @@
   <script>
     document.getElementById('logo').innerHTML = UI.logo({ onNavy: true });
     // Already signed in: go straight to the profile
-    Auth.me().then(user => { if (user) location.replace('profile.html'); }).catch(() => {});
+    Auth.me().then(user => { if (user) location.replace('home.html'); }).catch(() => {});
   </script>
 </body>
 </html>

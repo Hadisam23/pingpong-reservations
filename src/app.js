@@ -4,21 +4,42 @@ const { openDb } = require('./db');
 const { createService, ApiError, safeEqual } = require('./service');
 const { createAuth } = require('./auth');
 const { createMailer } = require('./mailer');
+const QRCode = require('qrcode');
+const { createPricing } = require('./pricing');
+const { createPayments } = require('./payments');
+const { createCheckIn } = require('./checkin');
+const { createNotifier } = require('./notify');
+const { createReservations } = require('./reservations');
+const { toIcs } = require('./ics');
 
 // Origins the Capacitor app runs on (iOS: capacitor://localhost, Android: http(s)://localhost).
 const APP_ORIGINS = ['capacitor://localhost', 'ionic://localhost', 'http://localhost', 'https://localhost'];
 
 const SESSION_COOKIE = 'rc_session';
 
-function createApp({ dbFile = ':memory:', adminPassword = null, baseUrl = null, corsOrigins = [], now, mailer = createMailer({ log: false }) } = {}) {
+function createApp({
+  dbFile = ':memory:', adminPassword = null, baseUrl = null, corsOrigins = [], now, mailer = createMailer({ log: false }),
+  stripeKey = null, stripeWebhookSecret = null, fetchImpl,
+} = {}) {
   const db = openDb(dbFile);
   const service = createService(db, { now });
   const auth = createAuth(db, { mailer, now });
+  const pricing = createPricing(db, service);
+  const payments = createPayments(db, { stripeKey, webhookSecret: stripeWebhookSecret, fetchImpl, currency: () => service.getSettings().currency, now });
+  const checkIn = createCheckIn(db);
+  const notifier = createNotifier(db, { mailer, now });
+  const reservations = createReservations(db, { service, pricing, payments, checkIn, notifier, now });
   const app = express();
+  // Async route handlers: send rejections to the error handler
+  const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
   app.disable('x-powered-by');
   // Behind a local/private proxy (Railway, ngrok) trust X-Forwarded-* for req.ip and req.secure
   app.set('trust proxy', 'loopback, linklocal, uniquelocal');
+  // Stripe signs the raw body, so this route reads it before the JSON parser does
+  app.post('/api/stripe/webhook', express.raw({ type: '*/*', limit: '1mb' }), wrap(async (req, res) => {
+    res.json(await payments.handleWebhook(req.body.toString('utf8'), req.get('stripe-signature')));
+  }));
   app.use(express.json({ limit: '50kb' }));
 
   const allowedOrigins = new Set([...APP_ORIGINS, ...corsOrigins]);
@@ -59,6 +80,7 @@ function createApp({ dbFile = ':memory:', adminPassword = null, baseUrl = null, 
       pricing: s.pricing,
       bookingTypes: s.bookingTypes,
       today: service.today().date,
+      payments: { provider: payments.provider, testCard: payments.provider === 'demo' ? payments.TEST_CARD : null },
     });
   });
 
@@ -103,6 +125,64 @@ function createApp({ dbFile = ':memory:', adminPassword = null, baseUrl = null, 
     setSessionCookie(req, res, result);
     res.status(status).json({ user: result.user, token: result.token });
   };
+
+  const optionalUser = (req, res, next) => {
+    req.user = auth.userForToken(sessionToken(req));
+    next();
+  };
+  // A guest proves a booking is theirs with its manage token (query, body or header)
+  const who = req => ({ user: req.user, token: req.query.token || (req.body && req.body.token) || req.get('x-booking-token') || null });
+
+  // ---------- table booking (Phase 4) ----------
+
+  api.get('/areas', (req, res) => res.json(reservations.areas()));
+  api.get('/tables/availability', optionalUser, (req, res) => {
+    res.json(reservations.availability({ ...req.query, user: req.user }));
+  });
+  api.get('/tables/free-today', optionalUser, (req, res) => res.json(reservations.freeToday({ user: req.user })));
+  api.post('/holds', optionalUser, (req, res) => res.status(201).json(reservations.hold(req.body, { user: req.user })));
+  api.get('/holds/:code', optionalUser, (req, res) => res.json(reservations.holdView(req.params.code, who(req))));
+  api.post('/holds/:code/quote', optionalUser, (req, res) => res.json(reservations.quote(req.params.code, req.body, who(req))));
+  api.post('/holds/:code/checkout', optionalUser, wrap(async (req, res) => {
+    res.json(await reservations.checkout(req.params.code, req.body, { ...who(req), baseUrl: publicUrl(req) }));
+  }));
+  api.delete('/holds/:code', optionalUser, (req, res) => {
+    reservations.release(req.params.code, who(req));
+    res.status(204).end();
+  });
+
+  api.get('/notifications', requireUser, (req, res) => res.json(notifier.list(req.user.id)));
+  api.get('/notifications/unread', requireUser, (req, res) => res.json({ count: notifier.unread(req.user.id) }));
+  api.post('/notifications/read', requireUser, (req, res) => {
+    notifier.readAll(req.user.id);
+    res.status(204).end();
+  });
+  api.get('/my/bookings', requireUser, (req, res) => res.json(reservations.mine(req.user)));
+  api.get('/reservations/:code', optionalUser, wrap(async (req, res) => {
+    const booking = reservations.get(req.params.code, who(req));
+    const qrSvg = booking.checkIn ? await QRCode.toString(booking.checkIn, { type: 'svg', margin: 0, errorCorrectionLevel: 'M' }) : null;
+    res.json({ ...booking, qrSvg });
+  }));
+  api.post('/reservations/:code/cancel', optionalUser, wrap(async (req, res) => {
+    res.json(await reservations.cancel(req.params.code, who(req)));
+  }));
+  api.post('/reservations/:code/reschedule', optionalUser, (req, res) => {
+    res.json(reservations.reschedule(req.params.code, req.body, who(req)));
+  });
+  api.get('/reservations/:code/calendar.ics', optionalUser, (req, res) => {
+    const b = reservations.get(req.params.code, who(req));
+    const s = service.getSettings();
+    res.set({ 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': `attachment; filename="rally-club-${b.code}.ics"` });
+    res.send(toIcs({
+      uid: `${b.code}@rallyclub`, start: b.startsAt, end: b.endsAt, now: new Date().toISOString(),
+      title: `${b.title} · ${s.centerName}`, location: `${s.centerName} · ${b.where}`,
+      description: `Booking #RC-${b.code}. Show your QR code at the door to check in.`,
+    }));
+  });
+  api.get('/shares/:token', (req, res) => res.json(reservations.shareView(req.params.token)));
+  api.post('/shares/:token/pay', wrap(async (req, res) => {
+    res.json(await reservations.payShare(req.params.token, { baseUrl: publicUrl(req) }));
+  }));
 
   api.get('/plans', (req, res) => {
     const { currency } = service.getSettings();
@@ -194,7 +274,7 @@ function createApp({ dbFile = ':memory:', adminPassword = null, baseUrl = null, 
     res.status(500).json({ error: { code: 'server_error', message: 'Something went wrong. Please try again.' } });
   });
 
-  return { app, service, auth, mailer, db };
+  return { app, service, auth, mailer, db, payments, reservations, checkIn, runJobs: () => reservations.runJobs() };
 }
 
 module.exports = { createApp };

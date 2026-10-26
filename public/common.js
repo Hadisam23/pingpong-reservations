@@ -22,6 +22,7 @@ async function api(path, { method = 'GET', body, token } = {}) {
   if (!res.ok) {
     const err = new Error((data && data.error && data.error.message) || `Request failed (${res.status})`);
     err.code = data && data.error && data.error.code;
+    err.field = data && data.error && data.error.field;
     err.status = res.status;
     throw err;
   }

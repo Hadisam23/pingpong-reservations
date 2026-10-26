@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Pay your share · Rally Club</title>
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+</head>
+<body class="ui-app">
+  <div class="ui-shell">
+    <main class="ui-screen ui-screen--app" aria-labelledby="title" id="screen" aria-busy="true">
+      <h1 class="ui-title" id="title">Your share</h1>
+      <p class="ui-body ui-muted" id="lede">&nbsp;</p>
+
+      <div class="ui-card ui-summary" id="summary" hidden>
+        <div class="ui-dateblock ui-dateblock--navy" aria-hidden="true"><span class="ui-dateblock__dow" id="dbDow"></span><span class="ui-dateblock__num" id="dbNum"></span></div>
+        <div class="ui-summary__text">
+          <span class="ui-summary__title" id="sumTitle"></span>
+          <span class="ui-summary__sub" id="sumSub"></span>
+        </div>
+      </div>
+
+      <div class="ui-lines" id="lines" hidden>
+        <div class="is-total"><span>Your share</span><span id="amount"></span></div>
+      </div>
+
+      <div class="ui-form__alert ui-form__alert--ok" role="status" id="paid" hidden>Paid. Thanks, see you at the table!</div>
+      <div class="ui-form__alert" role="alert" id="error" hidden></div>
+
+      <div class="ui-screen__spacer"></div>
+      <button type="button" class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block" id="pay" hidden><span data-ui-icon="lock"></span><span id="payLabel">Pay</span></button>
+    </main>
+    <nav id="tabbar"></nav>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script src="ui.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+  <script>
+    const t = App.param('t');
+    let share = null;
+
+    function render() {
+      const p = App.dayParts(share.date);
+      $('#lede').textContent = `${share.organizer} booked a table and split the cost.`;
+      $('#dbDow').textContent = p.dow.toUpperCase();
+      $('#dbNum').textContent = p.num;
+      $('#sumTitle').textContent = `Table · ${App.range(share.start, share.end)}`;
+      $('#sumSub').textContent = `${App.longDay(share.date)} · ${share.where}`;
+      $('#amount').textContent = App.price(share.amount, share.currency);
+      $('#payLabel').textContent = `Pay ${App.price(share.amount, share.currency)}`;
+      const settled = share.paid || share.covered;
+      $('#paid').hidden = !settled;
+      if (share.covered && !share.paid) $('#paid').textContent = `${share.organizer} covered this share. Settle up with them directly.`;
+      $('#pay').hidden = settled || share.status !== 'confirmed';
+      if (share.status !== 'confirmed' && !settled) { $('#error').textContent = 'This booking is no longer active.'; $('#error').hidden = false; }
+      ['summary', 'lines'].forEach(id => { $(`#${id}`).hidden = false; });
+      $('#screen').removeAttribute('aria-busy');
+    }
+
+    async function load() {
+      try {
+        share = await api(`/api/shares/${encodeURIComponent(t)}`);
+        render();
+      } catch (err) {
+        $('#title').textContent = 'Payment link not valid';
+        $('#lede').textContent = err.message;
+        $('#screen').removeAttribute('aria-busy');
+      }
+    }
+
+    $('#pay').addEventListener('click', async () => {
+      UI.setLoading($('#pay'), true);
+      try {
+        const res = await api(`/api/shares/${encodeURIComponent(t)}/pay`, { method: 'POST', body: {} });
+        if (res.redirect) { location.href = res.redirect; return; }
+        await load();
+      } catch (err) {
+        $('#error').textContent = err.message;
+        $('#error').hidden = false;
+      } finally {
+        UI.setLoading($('#pay'), false);
+      }
+    });
+
+    Auth.me().catch(() => null).then(user => App.tabbar('bookings', { guest: !user }));
+    load();
+  </script>
+</body>
+</html>

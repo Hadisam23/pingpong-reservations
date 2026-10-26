@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { DEFAULT_SETTINGS, validateSettings } = require('./settings');
 const { parseHHMM, formatHHMM, isValidDate, weekday, addDays, nowIn, minutesUntil } = require('./time');
+const { createOccupancy } = require('./occupancy');
 
 class ApiError extends Error {
   constructor(status, code, message, details) {
@@ -48,22 +49,16 @@ function createService(db, { now = () => new Date() } = {}) {
     upcomingOnTable: db.prepare(`SELECT COUNT(*) AS count FROM bookings
       WHERE tableId = ? AND status = 'confirmed' AND (date > ? OR (date = ? AND endMin > ?))`),
 
-    activeBookingsOnDate: db.prepare(`SELECT tableId, startMin, endMin FROM bookings
-      WHERE date = ? AND status IN ('confirmed', 'checked_in')`),
     bookingsOnDate: db.prepare(`SELECT b.*, t.name AS tableName FROM bookings b JOIN tables t ON t.id = b.tableId
-      WHERE b.date = ? ORDER BY b.startMin, b.tableId`),
+      WHERE b.date = ? AND b.status NOT IN ('held', 'expired') ORDER BY b.startMin, b.tableId`),
     blocksOnDate: db.prepare('SELECT * FROM blocks WHERE date = ? ORDER BY startMin'),
-    overlappingBooking: db.prepare(`SELECT 1 FROM bookings
-      WHERE tableId = ? AND date = ? AND status IN ('confirmed', 'checked_in') AND startMin < ? AND endMin > ? LIMIT 1`),
-    overlappingBlock: db.prepare(`SELECT 1 FROM blocks
-      WHERE (tableId IS NULL OR tableId = ?) AND date = ? AND startMin < ? AND endMin > ? LIMIT 1`),
     upcomingForPhone: db.prepare(`SELECT COUNT(*) AS count FROM bookings
       WHERE phone = ? AND status = 'confirmed' AND (date > ? OR (date = ? AND endMin > ?))`),
     insertBooking: db.prepare(`INSERT INTO bookings
       (code, manageToken, tableId, date, startMin, endMin, name, phone, players, price, type, status, source, createdAt, updatedAt)
       VALUES (@code, @manageToken, @tableId, @date, @startMin, @endMin, @name, @phone, @players, @price, @type, 'confirmed', @source, @now, @now)`),
     codeExists: db.prepare('SELECT 1 FROM bookings WHERE code = ?'),
-    getBooking: db.prepare('SELECT b.*, t.name AS tableName FROM bookings b JOIN tables t ON t.id = b.tableId WHERE b.code = ?'),
+    getBooking: db.prepare('SELECT b.*, t.name AS tableName FROM bookings b LEFT JOIN tables t ON t.id = b.tableId WHERE b.code = ?'),
     setStatus: db.prepare('UPDATE bookings SET status = ?, updatedAt = ? WHERE code = ?'),
 
     insertBlock: db.prepare('INSERT INTO blocks (tableId, date, startMin, endMin, reason, createdAt) VALUES (?, ?, ?, ?, ?, ?)'),
@@ -73,6 +68,8 @@ function createService(db, { now = () => new Date() } = {}) {
       WHERE b.date = ? AND b.status IN ('confirmed', 'checked_in') AND b.startMin < ? AND b.endMin > ?
         AND (? IS NULL OR b.tableId = ?)`),
   };
+
+  const occupancy = createOccupancy(db, { now, timezone: () => getSettings().timezone });
 
   // ---------- settings ----------
 
@@ -198,8 +195,7 @@ function createService(db, { now = () => new Date() } = {}) {
       });
     }
 
-    const bookings = stmts.activeBookingsOnDate.all(date);
-    const blocks = stmts.blocksOnDate.all(date);
+    const busy = occupancy.busyOn(date);
     return {
       date,
       closed: false,
@@ -208,13 +204,7 @@ function createService(db, { now = () => new Date() } = {}) {
       slotMinutes: settings.slotMinutes,
       slots,
       // Only time ranges are public: never names or phone numbers.
-      tables: tables.map(t => ({
-        ...t,
-        busy: [
-          ...bookings.filter(b => b.tableId === t.id),
-          ...blocks.filter(b => b.tableId === null || b.tableId === t.id),
-        ].map(b => ({ start: b.startMin, end: b.endMin })).sort((a, b) => a.start - b.start),
-      })),
+      tables: tables.map(t => ({ ...t, busy: (busy.get(t.id) || []).map(b => ({ start: b.start, end: b.end })) })),
     };
   }
 
@@ -226,7 +216,7 @@ function createService(db, { now = () => new Date() } = {}) {
       code: row.code,
       type: row.type,
       typeLabel: type ? type.label : row.type,
-      table: { id: row.tableId, name: row.tableName },
+      table: { id: row.tableId, name: row.tableName || null },
       date: row.date,
       start: formatHHMM(row.startMin),
       end: formatHHMM(row.endMin),
@@ -305,12 +295,11 @@ function createService(db, { now = () => new Date() } = {}) {
     const price = priceFor(settings, date, startMin, endMin, type.id);
 
     const insert = db.transaction(() => {
-      if (stmts.overlappingBooking.get(table.id, date, endMin, startMin)) {
+      const clash = occupancy.conflict(table.id, date, startMin, endMin);
+      if (clash && clash.kind === 'booking') {
         throw new ApiError(409, 'slot_taken', 'Sorry, that time was just taken. Please pick another slot.');
       }
-      if (stmts.overlappingBlock.get(table.id, date, endMin, startMin)) {
-        throw new ApiError(409, 'slot_blocked', 'That table is not available at that time');
-      }
+      if (clash) throw new ApiError(409, 'slot_blocked', 'That table is not available at that time');
       if (!admin) {
         const { count } = stmts.upcomingForPhone.get(phone, today.date, today.date, today.minutes);
         if (count >= settings.maxActiveBookingsPerPhone) {
@@ -398,8 +387,7 @@ function createService(db, { now = () => new Date() } = {}) {
 
     db.transaction(() => {
       // Restoring a cancelled booking must not create a double booking.
-      if (reactivating && (stmts.overlappingBooking.get(row.tableId, row.date, row.endMin, row.startMin)
-        || stmts.overlappingBlock.get(row.tableId, row.date, row.endMin, row.startMin))) {
+      if (reactivating && row.tableId && occupancy.conflict(row.tableId, row.date, row.startMin, row.endMin, { excludeBookingId: row.id })) {
         throw new ApiError(409, 'slot_taken', 'That slot has been taken or blocked since this booking was cancelled');
       }
       stmts.setStatus.run(status, now().toISOString(), row.code);
@@ -435,6 +423,7 @@ function createService(db, { now = () => new Date() } = {}) {
     getAvailability, createBooking, getBookingForCustomer, cancelByCustomer,
     getDay, setBookingStatus, addBlock, removeBlock,
     today: () => localNow(getSettings()),
+    occupancy,
     quote: (date, startMin, endMin, typeId) => priceFor(getSettings(), date, startMin, endMin, typeId),
   };
 }

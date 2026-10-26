@@ -9,7 +9,8 @@
   <link rel="stylesheet" href="components.css">
 </head>
 <body class="ui-app ui-page--white">
-  <main class="ui-screen" aria-labelledby="title">
+  <div class="ui-shell">
+  <main class="ui-screen ui-screen--edit" aria-labelledby="title">
     <div class="ui-screen__head">
       <a class="ui-icon-btn" href="profile.html" aria-label="Back"><span data-ui-icon="back"></span></a>
       <h1 class="ui-h2" id="title">Edit profile</h1>
@@ -39,17 +40,21 @@
 
     <button class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block" type="submit" form="form" id="submit">Save changes</button>
   </main>
+  <nav id="tabbar"></nav>
+  </div>
 
   <script src="config.js"></script>
   <script src="common.js"></script>
   <script src="ui.js"></script>
   <script src="auth.js"></script>
+  <script src="app.js"></script>
   <script>
     const form = document.getElementById('form');
     const field = id => document.getElementById(id);
     let levels;
 
     Auth.requireUser().then(user => {
+      App.tabbar('profile');
       field('name').value = user.name;
       field('email').value = user.email;
       field('phone').value = user.phone || '';

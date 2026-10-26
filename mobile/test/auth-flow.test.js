@@ -84,7 +84,10 @@ test('website: sign up, choose a plan, edit profile, log out and back in, reset 
   await page.click('.ui-radio-card:has-text("Club")');
   await page.click('#planSubmit');
 
-  // Profile
+  // New accounts land on Home; Profile is a tab away
+  await page.waitForURL(/home/);
+  await page.waitForSelector('#hero:not([hidden])');
+  await page.click('.ui-tab:has-text("Profile")');
   await page.waitForURL(/profile/);
   await page.waitForSelector('#head:not([hidden])');
   assert.equal(await page.textContent('#name'), 'Noa Cohen');
@@ -157,8 +160,8 @@ test('website: sign up, choose a plan, edit profile, log out and back in, reset 
   assert.match(await page.textContent('#confirm-error'), /don't match/);
   await page.fill('#confirm', 'brand-new-pass');
   await page.click('#submit');
-  await page.waitForURL(/profile/);
-  await page.waitForSelector('#head:not([hidden])');
+  await page.waitForURL(/home/);
+  await page.waitForSelector('#hero:not([hidden])');
   // The used link no longer works
   await page.goto(`${base}/${lastResetLink()}`);
   await page.fill('#password', 'another-pass-1');
@@ -183,26 +186,27 @@ test('app bundle (other origin): sign up keeps a bearer token, Welcome skips ahe
   await page.click('#accountSubmit');
   await page.waitForSelector('#stepPlan:not([hidden]) .ui-radio-card');
   await page.click('#planSkip');
+  await page.waitForURL(/home/);
+  await page.click('.ui-tab:has-text("Profile")');
   await page.waitForURL(/profile/);
   await page.waitForSelector('#head:not([hidden])');
   assert.equal(await page.textContent('#planName'), 'Drop-in');
   assert.ok(await page.evaluate(() => localStorage.getItem('rc.token')), 'token kept for the app');
 
   await page.goto(`${appOrigin}/welcome.html`);
-  await page.waitForURL(/profile/);
+  await page.waitForURL(/home/);
+  await page.goto(`${appOrigin}/profile.html`);
   await page.click('#logout');
   await page.waitForURL(/welcome/);
   assert.equal(await page.evaluate(() => localStorage.getItem('rc.token')), null);
   assert.deepEqual(errors, []);
 });
 
-test('guest booking page links to the account screens', async () => {
+test('the start page sends guests to Welcome, and Book as a guest opens booking', async () => {
   const { page } = await phone();
   await page.goto(`${base}/`);
-  assert.equal(await page.getAttribute('#accountLink', 'href'), 'welcome.html');
-  await page.click('#accountLink');
   await page.waitForURL(/welcome/);
   await page.click('text=Book as a guest');
-  await page.waitForURL(/index\.html/);
-  await page.waitForSelector('#grid .cell');
+  await page.waitForURL(/book\.html/);
+  await page.waitForSelector('#slots .ui-slot');
 });

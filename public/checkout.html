@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Review &amp; pay · Rally Club</title>
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+</head>
+<body class="ui-app">
+  <div class="ui-shell">
+    <main class="ui-screen ui-screen--app ui-checkout" aria-labelledby="title" id="screen" aria-busy="true">
+      <div class="ui-screen__head">
+        <a class="ui-icon-btn" href="book.html" aria-label="Back" id="back"><span data-ui-icon="back"></span></a>
+        <h1 class="ui-h2" id="title">Review &amp; pay</h1>
+      </div>
+
+      <span class="ui-countdown" id="countdown" role="timer" aria-live="off" hidden><span data-ui-icon="clock"></span><span id="countdownText"></span></span>
+      <div class="ui-form__alert" role="alert" id="alert" tabindex="-1" hidden></div>
+
+      <span class="ui-skel ui-skel--card" id="skel1" aria-hidden="true"></span>
+      <span class="ui-skel" style="height: 150px; border-radius: var(--radius-lg)" id="skel2" aria-hidden="true"></span>
+
+      <div class="ui-card ui-summary" id="summary" hidden>
+        <div class="ui-dateblock ui-dateblock--navy" aria-hidden="true"><span class="ui-dateblock__dow" id="dbDow"></span><span class="ui-dateblock__num" id="dbNum"></span></div>
+        <div class="ui-summary__text">
+          <span class="ui-summary__title" id="sumTitle"></span>
+          <span class="ui-summary__sub" id="sumSub"></span>
+        </div>
+        <a class="ui-link" href="book.html" id="edit">Edit</a>
+      </div>
+
+      <form class="ui-card ui-guest-fields" id="guestForm" novalidate hidden>
+        <span class="ui-card__title">Your details</span>
+        <div class="ui-field"><label class="ui-field__label" for="gName">Full name</label><input class="ui-input" id="gName" name="name" autocomplete="name" required></div>
+        <div class="ui-field"><label class="ui-field__label" for="gEmail">Email</label><input class="ui-input" id="gEmail" name="email" type="email" autocomplete="email" inputmode="email" required><span class="ui-field__help">We send the booking and the check-in code here.</span></div>
+        <div class="ui-field"><label class="ui-field__label" for="gPhone">Phone</label><input class="ui-input" id="gPhone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required></div>
+        <span class="ui-small ui-muted"><a class="ui-link" id="loginLink" href="login.html">Log in</a> for member prices and table credits.</span>
+      </form>
+
+      <section class="ui-card ui-players" aria-labelledby="playersTitle" id="players" hidden>
+        <div class="ui-card__row">
+          <span class="ui-card__title" id="playersTitle">Players</span>
+          <span class="ui-players__count" id="playersCount"></span>
+        </div>
+        <div class="ui-avatars" id="avatars"></div>
+        <label class="ui-toggle" id="splitRow" hidden>
+          <span class="ui-toggle__text"><span class="ui-toggle__title">Split the cost</span><span class="ui-toggle__sub" id="splitSub">Each player pays their share in the app</span></span>
+          <span class="ui-switch"><input type="checkbox" id="split" aria-label="Split the cost"><span class="ui-switch__track" aria-hidden="true"></span><span class="ui-switch__knob" aria-hidden="true"></span></span>
+        </label>
+      </section>
+
+      <div class="ui-card ui-card--list" id="methods" hidden></div>
+
+      <div class="ui-field" id="promoField" hidden>
+        <div class="ui-inline">
+          <label for="promo" class="ui-sr">Promo code</label>
+          <input class="ui-input ui-input--md" id="promo" name="promo" placeholder="Promo code" autocomplete="off" autocapitalize="characters">
+          <button type="button" class="ui-btn ui-btn--secondary" id="applyPromo">Apply</button>
+        </div>
+      </div>
+
+      <div class="ui-lines" id="lines" aria-live="polite" hidden></div>
+      <p class="ui-note" id="policy" hidden><span data-ui-icon="alert"></span><span id="policyText"></span></p>
+
+      <div class="ui-empty ui-error" role="alert" id="loadError" hidden>
+        <span class="ui-empty__icon"><span data-ui-icon="alert"></span></span>
+        <span class="ui-empty__title" id="loadErrorTitle">This booking isn't available</span>
+        <span class="ui-empty__text" id="loadErrorText"></span>
+        <a class="ui-btn ui-btn--primary ui-btn--sm" href="book.html">Pick a time</a>
+      </div>
+    </main>
+
+    <div class="ui-dock">
+      <div class="ui-actionbar ui-actionbar--solo" id="payBar" hidden>
+        <button type="button" class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block" id="pay"><span data-ui-icon="lock"></span><span id="payLabel">Confirm</span></button>
+      </div>
+      <nav id="tabbar"></nav>
+    </div>
+  </div>
+
+  <div class="ui-sheet" id="addSheet" role="dialog" aria-modal="true" aria-labelledby="addTitle" hidden>
+    <form class="ui-sheet__panel ui-form" id="addForm" novalidate>
+      <h2 class="ui-h2" id="addTitle">Add a player</h2>
+      <div class="ui-field"><label class="ui-field__label" for="pName">Name</label><input class="ui-input" id="pName" autocomplete="off" required></div>
+      <div class="ui-field"><label class="ui-field__label" for="pEmail">Email (optional)</label><input class="ui-input" id="pEmail" type="email" inputmode="email" autocomplete="off"><span class="ui-field__help">We'll send them the booking. With Split the cost on, they get a link to pay their share.</span></div>
+      <button type="submit" class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block">Add player</button>
+      <button type="button" class="ui-btn ui-btn--ghost" id="addCancel">Cancel</button>
+    </form>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script src="ui.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+  <script>
+    const code = App.param('code');
+    const token = App.param('token');
+    const state = { user: null, hold: null, quote: null, method: null, promo: '', others: [], split: false, timer: null };
+    const path = p => App.withToken(`/api/holds/${encodeURIComponent(code)}${p}`, token);
+    const bookAgain = () => {
+      if (!state.hold) return 'book.html';
+      const h = state.hold;
+      return `book.html?${new URLSearchParams({ date: h.date, duration: h.duration, area: h.areaId, start: h.start })}`;
+    };
+
+    function showError(title, text) {
+      $('#loadErrorTitle').textContent = title;
+      $('#loadErrorText').textContent = text;
+      $('#loadError').hidden = false;
+      ['skel1', 'skel2'].forEach(id => { $(`#${id}`).hidden = true; });
+      $('#screen').removeAttribute('aria-busy');
+    }
+
+    async function load() {
+      try {
+        state.user = await Auth.me().catch(() => null);
+        App.tabbar('tables', { guest: !state.user });
+        if (!code) return showError('No booking to pay for', 'Pick a time first.');
+        state.hold = await App.call(path(''));
+      } catch (err) {
+        return showError("This booking isn't available", err.message);
+      }
+      const h = state.hold;
+      if (['confirmed', 'checked_in'].includes(h.status)) {
+        location.replace(`confirmed.html?${new URLSearchParams(token ? { code, token } : { code })}`);
+        return;
+      }
+      if (!h.quote) return showError('Your hold has ended', 'This time is no longer held for you. Pick it again if it is still free.');
+      state.quote = h.quote;
+      state.method = h.quote.method;
+      state.others = Array.from({ length: Math.max(0, h.players - 1) }, () => ({ name: '' }));
+      render();
+      startCountdown();
+    }
+
+    function render() {
+      const h = state.hold;
+      const p = App.dayParts(h.date);
+      $('#dbDow').textContent = p.dow.toUpperCase();
+      $('#dbNum').textContent = p.num;
+      $('#sumTitle').textContent = `Table · ${App.range(h.start, h.end)}`;
+      $('#sumSub').textContent = h.area === 'Main hall' ? 'Main hall · table assigned at check-in' : h.where;
+      $('#back').href = $('#edit').href = bookAgain();
+      $('#edit').setAttribute('aria-label', 'Edit date and time');
+
+      $('#guestForm').hidden = !h.guest;
+      $('#loginLink').href = `login.html?next=${encodeURIComponent(bookAgain())}`;
+      if (h.guest) {
+        // Prefill from the last guest booking on this device
+        const last = store.get('rc.guestContact', null);
+        if (last) { $('#gName').value = last.name; $('#gEmail').value = last.email; $('#gPhone').value = last.phone; }
+      }
+      $('#splitRow').hidden = !state.user;
+      ['summary', 'players', 'methods', 'promoField', 'lines', 'policy', 'payBar'].forEach(id => { $(`#${id}`).hidden = false; });
+      ['skel1', 'skel2'].forEach(id => { $(`#${id}`).hidden = true; });
+      $('#screen').removeAttribute('aria-busy');
+
+      const c = h.cancellation;
+      const until = `${App.longDay(c.freeUntilDate)}, ${c.freeUntilTime}`;
+      $('#policyText').textContent = `Free cancellation until ${until} (${c.hours} h before). After that the booking is non-refundable.`;
+      renderPlayers();
+      renderQuote();
+    }
+
+    function renderPlayers() {
+      const max = state.hold.maxPlayers;
+      const count = 1 + state.others.length;
+      $('#playersCount').textContent = `${count} of ${max}`;
+      $('#avatars').innerHTML = '<span class="ui-avatar" aria-label="You">You</span>'
+        + state.others.map((o, i) => {
+          const label = o.name ? initials(o.name) : `G${i + 2}`;
+          return `<button type="button" class="ui-avatar ui-avatar--tint" data-remove="${i}" aria-label="Remove ${UI.esc(o.name || `player ${i + 2}`)}">${UI.esc(label)}</button>`;
+        }).join('')
+        + (count < max ? `<button type="button" class="ui-avatar ui-avatar--add" id="addPlayer" aria-label="Add player">${UI.icon('plus')}</button>` : '');
+      $('#split').checked = state.split;
+      $('#split').disabled = count < 2 || state.method !== 'CARD';
+      $('#splitSub').textContent = count < 2 ? 'Add players to split the cost' : state.method !== 'CARD' ? 'Only when paying by card' : 'Each player pays their share in the app';
+    }
+
+    function renderQuote() {
+      const q = state.quote;
+      UI.options($('#methods'), {
+        label: 'Payment method', value: q.method,
+        options: q.methods.filter(m => !m.disabled || m.id === 'CREDIT').map(m => ({ value: m.id, title: m.title, sub: m.sub })),
+        onChange: v => {
+          const m = q.methods.find(x => x.id === v);
+          if (m && m.disabled) { UI.toast(m.sub, { kind: 'error' }); renderQuote(); return; }
+          state.method = v;
+          refresh();
+        },
+      });
+      // Disabled methods stay visible (so people know credits exist) but can't be picked
+      q.methods.filter(m => m.disabled).forEach(m => {
+        const el = $(`#methods [data-value="${m.id}"]`);
+        if (el) el.setAttribute('aria-disabled', 'true');
+      });
+
+      const fmt = a => App.price(Math.abs(a), q.currency);
+      const rows = q.lines.map(l => `<div class="${l.discount ? 'is-discount' : ''}"><span>${UI.esc(l.label)}</span><span>${l.amount < 0 ? '−' : ''}${UI.esc(fmt(l.amount))}</span></div>`);
+      const label = q.split ? `Your share (1 of ${q.players})` : 'Total';
+      rows.push(`<div class="is-total"><span>${label}</span><span>${UI.esc(fmt(q.yourShare))}</span></div>`);
+      if (q.split) rows.push(`<div><span>Each other player</span><span>${UI.esc(fmt(q.otherShare))}</span></div>`);
+      $('#lines').innerHTML = rows.join('');
+
+      $('#payLabel').textContent = q.method === 'CREDIT' ? 'Use 1 credit & confirm'
+        : q.yourShare > 0 ? `Pay ${fmt(q.yourShare)} & confirm` : 'Confirm booking';
+      renderPlayers();
+    }
+
+    let pending = 0;
+    async function refresh({ promo } = {}) {
+      const ticket = ++pending;
+      try {
+        const q = await App.call(path('/quote'), {
+          method: 'POST',
+          body: { paymentMethod: state.method, promo: promo !== undefined ? promo : state.promo, players: 1 + state.others.length, split: state.split, token },
+        });
+        if (ticket !== pending) return;
+        state.quote = q;
+        state.method = q.method;
+        if (promo !== undefined) state.promo = promo;
+        renderQuote();
+      } catch (err) {
+        if (ticket !== pending) return;
+        if (err.code === 'invalid_promo') { UI.fieldError($('#promo'), err.message); $('#promo').focus(); return; }
+        if (err.code === 'hold_expired') return expired(err.message);
+        UI.toast(err.message, { kind: 'error' });
+      }
+    }
+
+    function startCountdown() {
+      const end = new Date(state.hold.expiresAt).getTime();
+      const tick = () => {
+        const left = Math.max(0, Math.round((end - Date.now()) / 1000));
+        $('#countdown').hidden = false;
+        $('#countdown').classList.toggle('is-low', left < 120);
+        $('#countdownText').textContent = left > 0 ? `Held for you · ${App.clock(left)}` : 'Hold ended · confirm now if the table is still free';
+        if (!left) clearInterval(state.timer);
+      };
+      tick();
+      state.timer = setInterval(tick, 1000);
+    }
+
+    function expired(message) {
+      clearInterval(state.timer);
+      $('#alert').innerHTML = `${UI.esc(message)} <a class="ui-link" href="${bookAgain()}">Pick a time</a>`;
+      $('#alert').hidden = false;
+      $('#alert').focus();
+      $('#pay').disabled = true;
+    }
+
+    // ---------- players ----------
+    $('#avatars').addEventListener('click', e => {
+      if (e.target.closest('#addPlayer')) return openAdd();
+      const remove = e.target.closest('[data-remove]');
+      if (remove) {
+        state.others.splice(Number(remove.dataset.remove), 1);
+        if (state.others.length === 0) state.split = false;
+        renderPlayers();
+        refresh();
+        $('#addPlayer') && $('#addPlayer').focus();
+      }
+    });
+    function openAdd() {
+      $('#addForm').reset();
+      UI.clearErrors($('#addForm'));
+      $('#addSheet').hidden = false;
+      $('#pName').focus();
+    }
+    const closeAdd = () => { $('#addSheet').hidden = true; $('#addPlayer') && $('#addPlayer').focus(); };
+    $('#addCancel').addEventListener('click', closeAdd);
+    $('#addSheet').addEventListener('click', e => { if (e.target.id === 'addSheet') closeAdd(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#addSheet').hidden) closeAdd(); });
+    $('#addForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const name = $('#pName').value.trim();
+      const email = $('#pEmail').value.trim();
+      if (name.length < 2) return UI.fieldError($('#pName'), 'Enter their name');
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return UI.fieldError($('#pEmail'), 'Enter a valid email, or leave it empty');
+      state.others.push({ name, email });
+      closeAdd();
+      renderPlayers();
+      refresh();
+    });
+    $('#split').addEventListener('change', e => { state.split = e.target.checked; refresh(); });
+
+    // ---------- promo ----------
+    $('#applyPromo').addEventListener('click', () => {
+      UI.clearErrors($('#promoField'));
+      refresh({ promo: $('#promo').value.trim() });
+    });
+    $('#promo').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#applyPromo').click(); } });
+
+    // ---------- back / edit: give the time back ----------
+    ['back', 'edit'].forEach(id => $(`#${id}`).addEventListener('click', e => {
+      if (!state.hold) return;
+      e.preventDefault();
+      const to = e.currentTarget.href;
+      App.call(path(''), { method: 'DELETE' }).catch(() => {}).finally(() => { location.href = to; });
+    }));
+
+    // ---------- pay ----------
+    $('#pay').addEventListener('click', async () => {
+      const btn = $('#pay');
+      const body = {
+        token, paymentMethod: state.method, promo: state.promo || undefined, players: 1 + state.others.length, split: state.split,
+        invites: state.others.map(o => ({ name: o.name || null, email: o.email || null })),
+      };
+      if (state.hold.guest) {
+        const form = $('#guestForm');
+        UI.clearErrors(form);
+        Object.assign(body, { name: $('#gName').value, email: $('#gEmail').value, phone: $('#gPhone').value });
+        const missing = [['gName', 'Enter your name'], ['gEmail', 'Enter your email'], ['gPhone', 'Enter your phone number']].filter(([id]) => !$(`#${id}`).value.trim());
+        if (missing.length) {
+          missing.forEach(([id, msg]) => UI.fieldError($(`#${id}`), msg));
+          $(`#${missing[0][0]}`).focus();
+          return;
+        }
+      }
+      UI.setLoading(btn, true);
+      try {
+        const res = await App.call(path('/checkout'), { method: 'POST', body });
+        if (res.redirect) return goToPayment(res.redirect);
+        if (state.hold.guest) {
+          App.rememberGuestBooking(res.booking.code, res.token);
+          store.set('rc.guestContact', { name: body.name, email: body.email, phone: body.phone });
+        }
+        haptic();
+        location.replace(`confirmed.html?${new URLSearchParams(state.hold.guest ? { code, token: res.token } : { code })}`);
+      } catch (err) {
+        UI.setLoading(btn, false);
+        if (err.code === 'hold_expired') return expired(err.message);
+        if (state.hold.guest && ['name', 'email', 'phone'].includes(err.field)) {
+          const input = { name: $('#gName'), email: $('#gEmail'), phone: $('#gPhone') }[err.field];
+          UI.fieldError(input, err.message);
+          input.focus();
+          return;
+        }
+        $('#alert').textContent = err.message;
+        $('#alert').hidden = false;
+        $('#alert').focus();
+      }
+    });
+
+    // Stripe Checkout: on the website go there; in the app it opens in Safari and we wait here.
+    function goToPayment(url) {
+      if (!isNativeApp) { location.href = url; return; }
+      window.open(url, '_blank');
+      $('#payLabel').textContent = 'Waiting for payment…';
+      const poll = setInterval(async () => {
+        const h = await App.call(path('')).catch(() => null);
+        if (h && ['confirmed', 'checked_in'].includes(h.status)) {
+          clearInterval(poll);
+          location.replace(`confirmed.html?${new URLSearchParams(token ? { code, token } : { code })}`);
+        }
+      }, 3000);
+    }
+
+    load();
+  </script>
+</body>
+</html>
