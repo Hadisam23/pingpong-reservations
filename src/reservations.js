@@ -14,6 +14,7 @@ const REDIRECT_HOLD_MINUTES = 35;   // a Stripe Checkout page stays open at leas
 const CREDIT_MAX_MINUTES = 60;      // one table credit covers a booking up to an hour
 const SPLIT_DEADLINE_MINUTES = 120; // unpaid shares go to the organizer 2 h before
 const NO_SHOW_MINUTES = 15;
+const EARLY_CHECKIN_MINUTES = 15;
 const STRIP_DAYS = 7;
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
@@ -124,7 +125,7 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
     if (date > lastDate && !allowPastWindow) {
       throw new ApiError(400, 'outside_window', `Your plan books up to ${plan.bookingWindowDays} days ahead. Members can book further ahead.`, { field: 'date' });
     }
-    return { hours: settings().hours[weekday(date)], lastDate };
+    return { hours: service.hoursOn(date), lastDate };
   }
 
   const isFreeIn = (busy, tableId, start, end) => !(busy.get(tableId) || []).some(i => i.start < end && i.end > start);
@@ -139,9 +140,10 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
     stmts.expireHolds.run({ now: iso() });
   }
 
-  function owned(code, { user, token } = {}) {
+  // admin: front desk / staff act on any booking
+  function owned(code, { user, token, admin = false } = {}) {
     const row = stmts.byCode.get(String(code ?? '').trim().toUpperCase());
-    const mine = row && ((user && row.userId === user.id) || (token && safeEqual(token, row.manageToken)));
+    const mine = row && (admin || (user && row.userId === user.id) || (token && safeEqual(token, row.manageToken)));
     if (!mine) throw new ApiError(404, 'booking_not_found', 'Booking not found');
     return row;
   }
@@ -162,7 +164,7 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
       const d = new Date(`${date}T12:00:00Z`);
       return {
         date, dow: DOW[weekday(date)], num: d.getUTCDate(),
-        closed: !settings().hours[weekday(date)], bookable: date <= lastDate && !!settings().hours[weekday(date)],
+        closed: !service.hoursOn(date), bookable: date <= lastDate && !!service.hoursOn(date),
       };
     });
   }
@@ -208,7 +210,7 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
   // Free tables today across the club for an hour, for the Home screen
   function freeToday({ user, limit = 4 } = {}) {
     const t = today();
-    const hours = settings().hours[weekday(t.date)];
+    const hours = service.hoursOn(t.date);
     if (!hours) return [];
     const busy = service.occupancy.busyOn(t.date);
     const tables = stmts.areas.all().flatMap(a => stmts.tablesInArea.all(a.id));
@@ -563,17 +565,20 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
 
   // ---------- cancel & reschedule ----------
 
-  async function cancel(code, who) {
+  // opts.refund (staff only) overrides the 24-hour rule either way
+  async function cancel(code, who, opts = {}) {
     const row = owned(code, who);
-    if (row.status !== 'confirmed') throw new ApiError(409, 'not_cancellable', `This booking is already ${row.status.replace('_', ' ')}`);
-    if (minutesToStart(row) <= 0) throw new ApiError(409, 'already_started', 'This booking has already started.');
-    const refundable = minutesToStart(row) >= settings().cancelCutoffMinutes;
+    const staff = !!who.admin;
+    const cancellable = row.status === 'confirmed' || (staff && ['held', 'no_show'].includes(row.status));
+    if (!cancellable) throw new ApiError(409, 'not_cancellable', `This booking is already ${row.status.replace('_', ' ')}`);
+    if (!staff && minutesToStart(row) <= 0) throw new ApiError(409, 'already_started', 'This booking has already started.');
+    const refundable = staff && typeof opts.refund === 'boolean' ? opts.refund : minutesToStart(row) >= settings().cancelCutoffMinutes;
     if (refundable) await payments.refundBooking(row.id);
     db.transaction(() => {
-      if (refundable && row.paymentMethod === 'CREDIT') {
+      if (refundable && row.paymentMethod === 'CREDIT' && row.status !== 'held') {
         stmts.ledger.run(row.userId, 'TABLE_CREDIT', 1, `Refund: cancelled ${row.code}`, row.id, iso());
       }
-      if (refundable && row.paymentMethod === 'PACK') {
+      if (refundable && row.paymentMethod === 'PACK' && row.status !== 'held') {
         const pack = stmts.lastPackUsed.get(row.userId);
         if (pack) stmts.packUse.run(-1, pack.id);
         stmts.ledger.run(row.userId, 'LESSON_PACK', 1, `Refund: cancelled ${row.code}`, row.id, iso());
@@ -628,6 +633,41 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
       emailText: `Your booking #RC-${row.code} is now on ${prettyDay(date)}, ${v.start}–${v.end} (${v.where}). Your QR code has been updated.`,
     });
     return v;
+  }
+
+  // ---------- check-in (front desk) ----------
+
+  // token: the QR content; code: typed at the desk. QR codes work from 15 min before the start
+  // until the end; a typed code works any time that day.
+  function checkInBooking({ token, code } = {}) {
+    let row;
+    if (token) {
+      const payload = checkIn.verify(token);
+      if (!payload) throw new ApiError(400, 'invalid_code', "This QR code isn't a Rally Club check-in code.");
+      row = stmts.byId.get(payload.bookingId);
+      if (!row || row.checkInCode !== String(token).trim()) {
+        throw new ApiError(409, 'stale_code', 'This code is out of date: the booking was moved or cancelled. Search by name instead.');
+      }
+      const toStart = minutesToStart(row);
+      if (toStart > EARLY_CHECKIN_MINUTES) throw new ApiError(409, 'too_early', `Too early: check-in opens ${EARLY_CHECKIN_MINUTES} min before ${formatHHMM(row.startMin)} on ${row.date}.`);
+      if (minutesUntil(row.date, row.endMin, today()) <= 0) throw new ApiError(409, 'expired', 'This booking has already ended.');
+    } else {
+      row = stmts.byCode.get(String(code ?? '').trim().toUpperCase().replace(/^#?RC-/, ''));
+      if (!row) throw new ApiError(404, 'booking_not_found', 'No booking with that code.');
+    }
+    if (row.status === 'checked_in') return { already: true, booking: adminView(row) };
+    if (!['confirmed', 'no_show'].includes(row.status)) throw new ApiError(409, 'not_active', `This booking is ${row.status.replace('_', ' ')}.`);
+    stmts.setStatus.run('checked_in', iso(), row.id);
+    return { already: false, booking: adminView(stmts.byId.get(row.id)) };
+  }
+
+  // Everything staff need, contact details included
+  function adminView(row) {
+    return {
+      ...view(row),
+      id: row.id, name: row.name, phone: row.phone, email: row.email, userId: row.userId, source: row.source,
+      type: row.type, holdExpiresAt: row.holdExpiresAt, createdAt: row.createdAt,
+    };
   }
 
   // ---------- split the cost ----------
@@ -692,7 +732,7 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
     availability, freeToday, areas: areasList, hold, release, holdView, quote, checkout, finalize,
     get, mine, cancel, reschedule, shareView, payShare, runJobs, expireHolds, view, planOf,
     byCode: code => stmts.byCode.get(code),
-    insertHoldRow, hooks, packLeft, LEVEL_LABEL,
+    insertHoldRow, hooks, packLeft, LEVEL_LABEL, checkInBooking, adminView, byId: id => stmts.byId.get(id), SELECT,
   };
 }
 

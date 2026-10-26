@@ -9,9 +9,6 @@ const LESSON_WINDOW_DAYS = 14;
 const CLASS_WINDOW_DAYS = 14;
 const OFFER_HOURS = 2;
 const PACK_MONTHS = 6;
-// Pack sizes and their saving on the private-lesson price; members save another 10%.
-const LESSON_PACKS = [{ size: 5, discountPct: 10 }, { size: 10, discountPct: 15 }];
-const MEMBER_PACK_DISCOUNT_PCT = 10;
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function createLessons(db, { service, reservations, payments, notifier, now = () => new Date() }) {
@@ -129,7 +126,7 @@ function createLessons(db, { service, reservations, payments, notifier, now = ()
     const t = today();
     if (date < t.date || date > addDays(t.date, LESSON_WINDOW_DAYS)) return [];
     if (stmts.timeOff.get(coachId, date, date)) return [];
-    const hours = settings().hours[weekday(date)];
+    const hours = service.hoursOn(date);
     if (!hours) return [];
     const open = parseHHMM(hours.open);
     const close = parseHHMM(hours.close);
@@ -319,8 +316,9 @@ function createLessons(db, { service, reservations, payments, notifier, now = ()
   function packOffers(user) {
     const base = (stmts.lessonTypes.all()[0] || { price: 0 }).price;
     const member = !!(user && reservations.planOf(user).pricingPlan);
-    return LESSON_PACKS.map(p => {
-      const pct = p.discountPct + (member ? MEMBER_PACK_DISCOUNT_PCT : 0);
+    // Pack sizes and savings come from the club settings (admin → Pricing)
+    return settings().lessonPacks.map(p => {
+      const pct = p.discountPct + (member ? settings().memberPackDiscountPct : 0);
       const price = Math.round(p.size * base * (1 - pct / 100));
       return { size: p.size, price, perLesson: Math.round(price / p.size), savePct: pct, full: p.size * base };
     });
@@ -366,4 +364,4 @@ function createLessons(db, { service, reservations, payments, notifier, now = ()
   };
 }
 
-module.exports = { createLessons, LESSON_PACKS, OFFER_HOURS };
+module.exports = { createLessons, OFFER_HOURS };

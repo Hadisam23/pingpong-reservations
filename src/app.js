@@ -12,6 +12,7 @@ const { createNotifier } = require('./notify');
 const { createReservations } = require('./reservations');
 const { createLessons } = require('./lessons');
 const { createMemberships } = require('./memberships');
+const { createAdmin } = require('./admin');
 const { toIcs } = require('./ics');
 
 // Origins the Capacitor app runs on (iOS: capacitor://localhost, Android: http(s)://localhost).
@@ -33,6 +34,7 @@ function createApp({
   const reservations = createReservations(db, { service, pricing, payments, checkIn, notifier, now });
   const lessons = createLessons(db, { service, reservations, payments, notifier, now });
   const memberships = createMemberships(db, { payments, notifier, service, now });
+  const staff = createAdmin(db, { service, reservations, lessons, notifier, now });
   const app = express();
   // Async route handlers: send rejections to the error handler
   const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -241,12 +243,17 @@ function createApp({
 
   const admin = express.Router();
 
+  // Staff sign in with their account (role ADMIN). ADMIN_PASSWORD as a Bearer token still
+  // works for scripts and the old front desk.
   admin.use((req, res, next) => {
-    if (!adminPassword) throw new ApiError(503, 'admin_disabled', 'Set ADMIN_PASSWORD to enable the admin panel');
     const m = /^Bearer (.+)$/.exec(req.get('authorization') || '');
-    if (!m || !safeEqual(m[1], adminPassword)) throw new ApiError(401, 'unauthorized', 'Wrong admin password');
-    next();
+    if (adminPassword && m && safeEqual(m[1], adminPassword)) { req.staff = { name: 'Front desk', via: 'password' }; return next(); }
+    const user = auth.userForToken(sessionToken(req));
+    if (user && user.role === 'ADMIN') { req.staff = { name: user.name, email: user.email, via: 'account' }; return next(); }
+    if (user) throw new ApiError(403, 'forbidden', 'Your account is not a staff account.');
+    throw new ApiError(401, 'unauthorized', 'Log in with a staff account.');
   });
+  admin.get('/me', (req, res) => res.json(req.staff));
 
   admin.get('/day', (req, res) => res.json(service.getDay(req.query.date || service.today().date)));
 
@@ -271,6 +278,47 @@ function createApp({
   admin.post('/tables', (req, res) => res.status(201).json(service.addTable(req.body.name)));
   admin.patch('/tables/:id', (req, res) => res.json(service.updateTable(req.params.id, req.body)));
 
+  // ---------- admin panel (Phase 7) ----------
+  admin.get('/calendar', (req, res) => res.json(staff.day(req.query.date)));
+  admin.get('/bookings', (req, res) => res.json(staff.bookings(req.query)));
+  admin.post('/bookings/:code/status', (req, res) => res.json(staff.setStatus(req.params.code, req.body.status)));
+  admin.post('/bookings/:code/cancel', wrap(async (req, res) => {
+    const refund = typeof req.body.refund === 'boolean' ? req.body.refund : undefined;
+    await reservations.cancel(req.params.code, { admin: true }, { refund });
+    res.json(reservations.adminView(reservations.byCode(req.params.code.toUpperCase())));
+  }));
+  admin.post('/checkin', (req, res) => res.json(reservations.checkInBooking(req.body)));
+  admin.get('/coaches', (req, res) => res.json(staff.coachList()));
+  admin.post('/coaches', (req, res) => res.status(201).json(staff.saveCoach(null, req.body)));
+  admin.put('/coaches/:id', (req, res) => res.json(staff.saveCoach(req.params.id, req.body)));
+  admin.post('/coaches/:id/time-off', (req, res) => res.status(201).json(staff.addTimeOff(req.params.id, req.body)));
+  admin.delete('/coaches/:id/time-off/:offId', (req, res) => res.json(staff.removeTimeOff(req.params.id, req.params.offId)));
+  admin.get('/classes', (req, res) => res.json(staff.classList(req.query)));
+  admin.post('/classes', (req, res) => res.status(201).json(staff.createClass(req.body)));
+  admin.patch('/classes/:id', (req, res) => res.json(staff.updateClass(req.params.id, req.body)));
+  admin.delete('/classes/:id', wrap(async (req, res) => res.json(await staff.cancelClass(req.params.id))));
+  admin.get('/pricing', (req, res) => res.json(staff.pricing()));
+  admin.put('/pricing/rules', (req, res) => res.json(staff.saveRules(req.body.rules)));
+  admin.put('/plans/:id', (req, res) => res.json(staff.savePlan(req.params.id, req.body)));
+  admin.post('/lesson-types', (req, res) => res.status(201).json(staff.saveLessonType(null, req.body)));
+  admin.put('/lesson-types/:id', (req, res) => res.json(staff.saveLessonType(req.params.id, req.body)));
+  admin.put('/lesson-packs', (req, res) => res.json(staff.savePacks(req.body)));
+  admin.post('/promos', (req, res) => res.status(201).json(staff.savePromo(req.body)));
+  admin.delete('/promos/:code', (req, res) => res.json(staff.deletePromo(req.params.code)));
+  admin.get('/members', (req, res) => res.json(staff.members(req.query)));
+  admin.get('/members/:id', (req, res) => res.json(staff.member(req.params.id)));
+  admin.post('/members/:id/credits', (req, res) => res.json(staff.adjustCredits(req.params.id, req.body)));
+  admin.put('/members/:id/role', (req, res) => res.json(staff.setRole(req.params.id, req.body.role)));
+  admin.get('/club', (req, res) => res.json(staff.clubSettings()));
+  admin.put('/club', (req, res) => res.json(staff.saveClubSettings(req.body)));
+  admin.post('/club/tables', (req, res) => res.status(201).json(staff.saveTable(null, req.body)));
+  admin.put('/club/tables/:id', (req, res) => res.json(staff.saveTable(req.params.id, req.body)));
+  admin.post('/club/areas', (req, res) => res.status(201).json(staff.saveArea(null, req.body)));
+  admin.put('/club/areas/:id', (req, res) => res.json(staff.saveArea(req.params.id, req.body)));
+  admin.post('/club/closures', (req, res) => res.status(201).json(staff.addClosure(req.body)));
+  admin.delete('/club/closures/:date', (req, res) => res.json(staff.removeClosure(req.params.date)));
+  admin.get('/reports', (req, res) => res.json(staff.reports(req.query)));
+
   api.use('/admin', admin);
   app.use('/api', api);
 
@@ -286,6 +334,8 @@ function createApp({
     ['/forgot-password', 'forgot'], ['/reset-password', 'reset'], ['/profile', 'profile'], ['/profile/edit', 'profile-edit']]) {
     app.get(route, (req, res) => res.sendFile(path.join(pub, `${file}.html`)));
   }
+  // QR decoding for the check-in scanner on browsers without BarcodeDetector (Safari)
+  app.get('/vendor/jsqr.js', (req, res) => res.sendFile(require.resolve('jsqr/dist/jsQR.js')));
   app.use(express.static(pub));
 
   app.use('/api', (req, res) => {

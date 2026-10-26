@@ -70,6 +70,13 @@ function createService(db, { now = () => new Date() } = {}) {
   };
 
   const occupancy = createOccupancy(db, { now, timezone: () => getSettings().timezone });
+  const closureOn = db.prepare('SELECT reason FROM closures WHERE date = ?');
+
+  // Opening hours on a date, or null when closed (weekly hours or a holiday closure)
+  function hoursOn(date, settings = getSettings()) {
+    if (closureOn.get(date)) return null;
+    return settings.hours[weekday(date)];
+  }
 
   // ---------- settings ----------
 
@@ -176,7 +183,7 @@ function createService(db, { now = () => new Date() } = {}) {
     }
 
     const tables = listTables();
-    const hours = settings.hours[weekday(date)];
+    const hours = hoursOn(date, settings);
     if (!hours) {
       return { date, closed: true, slotMinutes: settings.slotMinutes, slots: [], tables: tables.map(t => ({ ...t, busy: [] })) };
     }
@@ -249,7 +256,7 @@ function createService(db, { now = () => new Date() } = {}) {
       throw new ApiError(400, 'too_far_ahead', `You can book up to ${settings.maxAdvanceDays} days ahead`);
     }
 
-    const hours = settings.hours[weekday(date)];
+    const hours = hoursOn(date, settings);
     if (!hours) throw new ApiError(400, 'closed', 'The center is closed that day');
     const open = parseHHMM(hours.open);
     const close = parseHHMM(hours.close);
@@ -423,6 +430,8 @@ function createService(db, { now = () => new Date() } = {}) {
     getAvailability, createBooking, getBookingForCustomer, cancelByCustomer,
     getDay, setBookingStatus, addBlock, removeBlock,
     today: () => localNow(getSettings()),
+    hoursOn,
+    closure: date => closureOn.get(date) || null,
     occupancy,
     quote: (date, startMin, endMin, typeId) => priceFor(getSettings(), date, startMin, endMin, typeId),
   };

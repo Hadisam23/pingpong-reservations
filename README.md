@@ -262,6 +262,24 @@ API: `GET /api/coaches`, `GET /api/coaches/:id`, `GET /api/coaches/:id/slots`, `
 API: `GET /api/me/membership`, `PUT /api/me/plan` (→ `{ user, membership, redirect? }`),
 `POST /api/me/membership/cancel|resume`, `POST /api/me/payment-methods`.
 
+## Admin panel (Phase 7)
+
+`/admin`: desktop first, works on a tablet or phone. Staff log in with their own account (role
+**ADMIN**). The demo seed has `admin@rallyclub.test`; on a real install sign up in the app, then run
+`npm run make-admin -- you@club.com`. `ADMIN_PASSWORD` still works as a Bearer token for scripts.
+
+| Section | What staff can do |
+|---|---|
+| Calendar | Day view: rows are tables, columns are time; bookings, lessons, classes and maintenance in their own colours. Drag across a table to block time or add a walk-in. Click anything to check in, mark a no-show, cancel with or without a refund |
+| Bookings | Search by name, phone, email or code; filter by date, status and type |
+| Check-in | Camera QR scanner (BarcodeDetector, or jsQR on Safari) + type a code + today's list |
+| Coaches | Profile, specialties, levels, weekly hours, time off, show/hide in the app |
+| Classes | Create one-off or weekly sessions (level, coach, tables, capacity, price); edit; cancel with refunds |
+| Pricing & plans | Table price rules, plans (price, discount, window, credits), lesson types, lesson packs, promo codes |
+| Members | Plan and status, credits, pack lessons, bookings, credits and payment history; adjust credits; change role |
+| Settings | Club name, time zone, cancellation window, opening hours, tables & areas, holiday closures |
+| Reports | Utilization by hour, revenue by type, no-show rate, bookings, active members |
+
 ## Project layout
 
 ```

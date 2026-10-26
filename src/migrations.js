@@ -386,6 +386,18 @@ const MIGRATIONS = [
       db.exec('CREATE INDEX IF NOT EXISTS idx_bookings_coach ON bookings(coachId, date)');
     },
   },
+  {
+    name: 'admin: holiday closures',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS closures (
+          date TEXT PRIMARY KEY,               -- club-local YYYY-MM-DD
+          reason TEXT,
+          createdAt TEXT NOT NULL
+        );
+      `);
+    },
+  },
 ];
 
 function migrate(db) {

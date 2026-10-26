@@ -178,8 +178,9 @@ test('admin auth', async () => {
 
   const noPassword = createApp({}).app.listen(0);
   await new Promise(r => noPassword.once('listening', r));
+  // Without ADMIN_PASSWORD only staff accounts get in
   const res = await fetch(`http://127.0.0.1:${noPassword.address().port}/api/admin/day`, { headers: adminHeaders });
-  assert.equal(res.status, 503);
+  assert.equal(res.status, 401);
   noPassword.close();
 });
 

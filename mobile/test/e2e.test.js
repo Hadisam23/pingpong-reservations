@@ -270,26 +270,66 @@ test('member: lessons — coach detail, book with a pack lesson; classes — joi
   assert.deepEqual(errors, []);
 });
 
-test('front desk on a phone: seeded day, type colors, check-in', async () => {
-  const { page, errors } = await openPage('admin.html');
-  await page.fill('#pw', PASSWORD);
-  await page.click('#loginForm button');
-  await page.waitForSelector('#tab-day:not(.hidden)');
-  for (let i = 0; i < 5 && (await page.locator('.tl .bk.confirmed').count()) === 0; i++) {
+test('admin panel: staff login, calendar check-in, drag to block, every section loads', async () => {
+  const desk = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  const page = await desk.newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  // 401/403 are expected: before signing in, and for the player account
+  page.on('console', m => { if (m.type() === 'error' && !/status of 40[13]/.test(m.text())) errors.push(m.text()); });
+  page.on('dialog', d => d.accept());
+  await page.goto(`${apiBase}/admin`);
+  // A player account is not staff
+  await page.fill('#lEmail', DEMO.email);
+  await page.fill('#lPassword', DEMO.password);
+  await page.click('#loginBtn');
+  await page.waitForSelector('#loginForm .ui-form__alert:not([hidden])');
+  await page.evaluate(() => fetch('/api/auth/logout', { method: 'POST' }));
+  await page.reload();
+  await page.fill('#lEmail', 'admin@rallyclub.test');
+  await page.fill('#lPassword', DEMO.password);
+  await page.click('#loginBtn');
+  await page.waitForSelector('.ad-cal, .ad-main .ui-empty');
+  for (let i = 0; i < 5 && !(await page.locator('.ad-cal .ad-item--booking.is-confirmed').count()); i++) {
     await page.click('#nextDay');
     await page.waitForTimeout(300);
   }
-  assert.ok(await page.locator('.tl .bk.confirmed').count() > 0, 'expected confirmed bookings on the timeline');
-  assert.equal(await page.locator('#typebar .tag').count(), 5);
-  await noHorizontalScroll(page);
-  await page.screenshot({ path: path.join(SHOTS, `${browserName}-5-admin.png`), fullPage: true });
+  assert.equal(await page.locator('.ad-cal__row').count(), 4, 'one row per table');
+  await page.screenshot({ path: path.join(SHOTS, 'admin-1-calendar.png') });
+  await page.locator('.ad-cal .ad-item--booking.is-confirmed').first().click();
+  await page.waitForSelector('#drawer:not([hidden])');
+  await page.click('#drawer [data-status="checked_in"]');
+  await page.waitForSelector('.ui-toast--success');
+  assert.ok(await page.locator('.ad-cal .ad-item.is-checked_in').count() > 0);
 
-  await page.locator('.tl .bk.confirmed').first().click();
-  await page.waitForSelector('#dialog:not(.hidden)');
-  await page.click('#dActions [data-status="checked_in"]');
-  await page.waitForSelector('#dialog.hidden', { state: 'attached' });
-  assert.ok(await page.locator('.tl .bk.checked_in').count() > 0);
+  // Drag across Table 4 to block it
+  const track = page.locator('.ad-cal__track[data-table]').last();
+  const box = await track.boundingBox();
+  await page.mouse.move(box.x + 6, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 6 + 56 * 2, box.y + box.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForSelector('#blockForm');
+  await page.fill('#blockForm [name="reason"]', 'New rubber');
+  await page.click('#blockForm button');
+  await page.waitForSelector('.ad-cal .ad-item--block');
+
+  for (const id of ['bookings', 'checkin', 'coaches', 'classes', 'pricing', 'members', 'settings', 'reports']) {
+    await page.click(`#nav a[data-id="${id}"]`);
+    await page.waitForFunction(sel => !document.querySelector('.ad-main .ui-skel') && document.querySelector(sel), '.ad-main .ad-card, .ad-main .ad-table-wrap, .ad-main .ui-empty');
+    assert.equal(await page.locator('.ad-main .ui-error').count(), 0, `${id} loaded`);
+  }
+  await page.screenshot({ path: path.join(SHOTS, 'admin-2-reports.png'), fullPage: true });
+  await page.click('#nav a[data-id="checkin"]');
+  await page.waitForSelector('#codeForm');
+  const today = (await adminApi(`/bookings?from=${service.today().date}&to=${service.today().date}&status=confirmed`))[0];
+  if (today) {
+    await page.fill('#code', `RC-${today.code}`);
+    await page.click('#codeForm button');
+    await page.waitForSelector('.ad-result--ok');
+  }
   assert.deepEqual(errors, []);
+  await desk.close();
 });
 
 test('in-app self-test (used on the iOS Simulator) passes', async () => {

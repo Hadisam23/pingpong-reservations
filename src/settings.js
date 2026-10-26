@@ -27,6 +27,9 @@ const DEFAULT_SETTINGS = {
     peakStart: '17:00',
     peakDays: [5, 6],
   },
+  // Lesson packs: size and saving on the private-lesson price; members save memberPackDiscountPct more
+  lessonPacks: [{ size: 5, discountPct: 10 }, { size: 10, discountPct: 15 }],
+  memberPackDiscountPct: 10,
   // Kinds of reservation. extraPerHour is added on top of the table rate;
   // minDuration (optional) forces a longer booking, e.g. for parties.
   bookingTypes: [
@@ -86,6 +89,12 @@ function validateSettings(s) {
       return 'booking type minDuration must be a multiple of slotMinutes';
     }
   }
+  if (!Array.isArray(s.lessonPacks) || s.lessonPacks.length > 6) return 'lessonPacks must be a list (up to 6)';
+  for (const p of s.lessonPacks) {
+    if (!p || !isInt(p.size, 2, 50)) return 'each lesson pack needs a size of 2-50 lessons';
+    if (typeof p.discountPct !== 'number' || p.discountPct < 0 || p.discountPct > 90) return 'lesson pack discountPct must be 0-90';
+  }
+  if (typeof s.memberPackDiscountPct !== 'number' || s.memberPackDiscountPct < 0 || s.memberPackDiscountPct > 50) return 'memberPackDiscountPct must be 0-50';
   return null;
 }
 

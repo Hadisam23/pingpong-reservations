@@ -117,6 +117,8 @@ function seedDemo(db, service, { seed = Date.now(), daysBack = 3, daysAhead = 7 
 
   const tx = db.transaction(() => {
     // ---------- reset the demo world ----------
+    // Payments for bookings and for demo accounts go with them
+    db.prepare('DELETE FROM payments WHERE bookingId IS NOT NULL OR userId IN (SELECT id FROM users WHERE email LIKE ?)').run(`%@${DEMO_DOMAIN}`);
     db.exec(`
       DELETE FROM bookings; DELETE FROM blocks; DELETE FROM waitlist; DELETE FROM class_sessions;
       DELETE FROM coaches; DELETE FROM lesson_types; DELETE FROM price_rules; DELETE FROM promo_codes;
@@ -340,6 +342,18 @@ function seedDemo(db, service, { seed = Date.now(), daysBack = 3, daysAhead = 7 
     const live = db.prepare("SELECT id, userId, date, endMin FROM bookings WHERE status IN ('confirmed', 'checked_in')").all();
     const setCode = db.prepare('UPDATE bookings SET checkInCode = ? WHERE id = ?');
     for (const b of live) setCode.run(sign.sign({ bookingId: b.id, userId: b.userId, expiresAt: zonedToUtc(b.date, b.endMin, tz) }), b.id);
+
+    // Card payments behind the paid online bookings (demo provider), so reports have revenue
+    const insertPayment = db.prepare(`INSERT INTO payments (bookingId, userId, kind, provider, amount, currency, status, description, createdAt, updatedAt)
+      VALUES (?, ?, 'BOOKING', 'demo', ?, ?, ?, 'Demo booking', ?, ?)`);
+    const paid = db.prepare(`SELECT id, userId, price, status, date FROM bookings
+      WHERE source = 'online' AND price > 0 AND COALESCE(paymentMethod, 'CARD') = 'CARD'`).all();
+    for (const b of paid) {
+      if (rng() < 0.3) continue;   // some paid at the desk
+      const at = zonedToUtc(addDays(b.date, -1), 12 * 60, tz);
+      insertPayment.run(b.id, b.userId, b.price, settings.currency, b.status === 'cancelled' ? 'REFUNDED' : 'SUCCEEDED', at, at);
+      db.prepare("UPDATE bookings SET paymentMethod = 'CARD' WHERE id = ?").run(b.id);
+    }
 
     const count = sql => db.prepare(sql).get().c;
     return {
