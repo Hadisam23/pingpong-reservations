@@ -28,13 +28,18 @@ step() { printf '\n\033[1m▶ %s\033[0m\n' "$*"; }
 
 # 1. Backend with demo data (5 tables, random reservations of every type)
 step "Starting backend on :$PORT with demo data"
+if lsof -ti tcp:"$PORT" >/dev/null 2>&1; then
+  echo "Port $PORT is already in use (another server running?). Stop it, or run with PORT=3001." >&2
+  exit 1
+fi
 [[ -d "$ROOT_DIR/node_modules" ]] || (cd "$ROOT_DIR" && npm install)
 [[ -d "$MOBILE_DIR/node_modules" ]] || npm install
 export DB_PATH="$WORK/pingpong.db" ADMIN_PASSWORD="$PASSWORD" PORT
 (cd "$ROOT_DIR" && node scripts/seed.js --seed 2026)
-(cd "$ROOT_DIR" && node server.js > "$WORK/server.log" 2>&1) &
+# exec: the subshell becomes node, so $SERVER_PID is the server itself and the trap really stops it
+(cd "$ROOT_DIR" && exec node server.js > "$WORK/server.log" 2>&1) &
 SERVER_PID=$!
-trap 'kill $SERVER_PID 2>/dev/null || true; rm -rf "$WORK"' EXIT
+trap 'kill $SERVER_PID 2>/dev/null || true; wait $SERVER_PID 2>/dev/null || true; rm -rf "$WORK"' EXIT
 for _ in $(seq 1 50); do curl -sf "http://localhost:$PORT/health" >/dev/null && break; sleep 0.2; done
 curl -sf "http://localhost:$PORT/health" >/dev/null || { cat "$WORK/server.log"; echo "Backend did not start" >&2; exit 1; }
 
