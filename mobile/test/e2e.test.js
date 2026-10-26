@@ -88,10 +88,10 @@ async function pickSlot(page, { type = 'casual', duration = '1h', dayIndex = 2 }
   return slot;
 }
 
-test('booking page: 5 tables, booking types and seeded reservations', async () => {
+test('booking page: 4 tables, booking types and seeded reservations', async () => {
   const { page, errors } = await openPage();
   await page.waitForSelector('#grid .cell');
-  assert.equal(await page.locator('#grid .th').count(), 5);
+  assert.equal(await page.locator('#grid .th').count(), 4);
   assert.deepEqual(await page.locator('#types .type-opt .tl1').allTextContents(),
     ['Casual play', 'Training with robot', 'Private coaching', 'League match', 'Birthday / event']);
 

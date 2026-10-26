@@ -35,7 +35,8 @@ test('sign up creates an account, a session cookie and a Drop-in plan', async ()
   assert.equal(res.body.user.phone, '0521234567');
   assert.equal(res.body.user.skillLevel, 'intermediate');
   assert.equal(res.body.user.role, 'PLAYER');
-  assert.deepEqual(res.body.user.plan, { id: 'dropin', name: 'Drop-in', price: 0, bookingWindowDays: 3, status: 'active' });
+  assert.deepEqual(res.body.user.plan, { id: 'dropin', name: 'Drop-in', price: 0, bookingWindowDays: 3, status: 'active', currentPeriodEnd: null });
+  assert.deepEqual(res.body.user.stats, { sessionsThisMonth: 0, tableCredits: 0 });
   assert.ok(!('passwordHash' in res.body.user));
   assert.ok(res.body.token.length > 30);
 

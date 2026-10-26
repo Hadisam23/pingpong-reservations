@@ -64,4 +64,19 @@ function isValidTimeZone(tz) {
   }
 }
 
-module.exports = { parseHHMM, formatHHMM, isValidDate, weekday, addDays, dayDiff, nowIn, minutesUntil, isValidTimeZone };
+// A local date + minutes-from-midnight in a time zone → the UTC instant (ISO string).
+// Handles daylight-saving offsets by checking the zone's offset at the guessed instant.
+function zonedToUtc(date, minutes, timeZone) {
+  const [y, m, d] = date.split('-').map(Number);
+  const wanted = Date.UTC(y, m - 1, d, Math.floor(minutes / 60), minutes % 60);
+  const offsetAt = instant => {
+    const local = nowIn(timeZone, new Date(instant));
+    const [ly, lm, ld] = local.date.split('-').map(Number);
+    return Date.UTC(ly, lm - 1, ld) + local.minutes * 60000 - instant;
+  };
+  let utc = wanted - offsetAt(wanted);
+  utc = wanted - offsetAt(utc);
+  return new Date(utc).toISOString();
+}
+
+module.exports = { parseHHMM, formatHHMM, isValidDate, weekday, addDays, dayDiff, nowIn, minutesUntil, isValidTimeZone, zonedToUtc };

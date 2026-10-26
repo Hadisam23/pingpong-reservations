@@ -3,7 +3,8 @@
 // and stored only as SHA-256 hashes.
 const crypto = require('crypto');
 const { ApiError, normalizePhone } = require('./service');
-const { PLANS, findPlan } = require('./plans');
+const { listPlans, findPlan } = require('./plans');
+const { nowIn } = require('./time');
 
 const SKILL_LEVELS = ['beginner', 'intermediate', 'advanced'];
 const SESSION_DAYS = 30;
@@ -68,7 +69,13 @@ function createAuth(db, { mailer, now = () => new Date() } = {}) {
     insertUser: db.prepare(`INSERT INTO users (name, email, phone, passwordHash, skillLevel, createdAt, updatedAt)
       VALUES (@name, @email, @phone, @passwordHash, @skillLevel, @now, @now)`),
     updateProfile: db.prepare('UPDATE users SET name = @name, email = @email, phone = @phone, skillLevel = @skillLevel, updatedAt = @now WHERE id = @id'),
-    updatePlan: db.prepare('UPDATE users SET planId = ?, planStatus = ?, updatedAt = ? WHERE id = ?'),
+    membership: db.prepare('SELECT * FROM memberships WHERE userId = ?'),
+    upsertMembership: db.prepare(`INSERT INTO memberships (userId, planId, status, createdAt, updatedAt) VALUES (@userId, @planId, @status, @now, @now)
+      ON CONFLICT(userId) DO UPDATE SET planId = excluded.planId, status = excluded.status, cancelAtPeriodEnd = 0, updatedAt = excluded.updatedAt`),
+    creditBalance: db.prepare("SELECT COALESCE(SUM(delta), 0) AS balance FROM credit_ledger WHERE userId = ? AND type = 'TABLE_CREDIT'"),
+    sessionsInMonth: db.prepare(`SELECT COUNT(*) AS c FROM bookings WHERE userId = ? AND date BETWEEN ? AND ?
+      AND status IN ('confirmed', 'checked_in')`),
+    clubTimezone: db.prepare("SELECT value FROM settings WHERE key = 'config'"),
     updatePassword: db.prepare('UPDATE users SET passwordHash = ?, updatedAt = ? WHERE id = ?'),
     insertSession: db.prepare('INSERT INTO sessions (tokenHash, userId, createdAt, expiresAt) VALUES (?, ?, ?, ?)'),
     sessionByHash: db.prepare('SELECT * FROM sessions WHERE tokenHash = ?'),
@@ -98,8 +105,15 @@ function createAuth(db, { mailer, now = () => new Date() } = {}) {
     for (const key of keys) failures.set(key, [...(failures.get(key) || []), t]);
   }
 
+  function timezone() {
+    const row = stmts.clubTimezone.get();
+    return (row && JSON.parse(row.value).timezone) || 'Asia/Jerusalem';
+  }
+
   function publicUser(row) {
-    const plan = findPlan(row.planId) || findPlan('dropin');
+    const membership = stmts.membership.get(row.id) || { planId: 'dropin', status: 'ACTIVE' };
+    const plan = findPlan(db, membership.planId) || findPlan(db, 'dropin');
+    const month = nowIn(timezone(), now()).date.slice(0, 7);
     return {
       id: row.id,
       name: row.name,
@@ -108,9 +122,15 @@ function createAuth(db, { mailer, now = () => new Date() } = {}) {
       skillLevel: row.skillLevel,
       role: row.role,
       memberSince: row.createdAt,
-      plan: { id: plan.id, name: plan.name, price: plan.price, bookingWindowDays: plan.bookingWindowDays, status: row.planStatus },
-      // Linked bookings and credits arrive in Phases 4 and 6; until then these are truly zero.
-      stats: { sessionsThisMonth: 0, tableCredits: 0 },
+      plan: {
+        id: plan.id, name: plan.name, price: plan.price, bookingWindowDays: plan.bookingWindowDays,
+        status: membership.status === 'PENDING_PAYMENT' ? 'pending_payment' : membership.status.toLowerCase(),
+        currentPeriodEnd: membership.currentPeriodEnd || null,
+      },
+      stats: {
+        sessionsThisMonth: stmts.sessionsInMonth.get(row.id, `${month}-01`, `${month}-31`).c,
+        tableCredits: stmts.creditBalance.get(row.id).balance,
+      },
     };
   }
 
@@ -133,7 +153,11 @@ function createAuth(db, { mailer, now = () => new Date() } = {}) {
     if (stmts.userByEmail.get(email)) {
       throw new ApiError(409, 'email_taken', 'An account with this email already exists. Log in instead.', { field: 'email' });
     }
-    const { lastInsertRowid } = stmts.insertUser.run({ name, email, phone, passwordHash: hashPassword(password), skillLevel, now: now().toISOString() });
+    const { lastInsertRowid } = db.transaction(() => {
+      const result = stmts.insertUser.run({ name, email, phone, passwordHash: hashPassword(password), skillLevel, now: now().toISOString() });
+      stmts.upsertMembership.run({ userId: result.lastInsertRowid, planId: 'dropin', status: 'ACTIVE', now: now().toISOString() });
+      return result;
+    })();
     return { user: publicUser(stmts.userById.get(lastInsertRowid)), ...startSession(lastInsertRowid) };
   }
 
@@ -182,9 +206,9 @@ function createAuth(db, { mailer, now = () => new Date() } = {}) {
 
   // Free plans are active at once; paid plans wait for payment (Phase 6).
   function choosePlan(userId, planId) {
-    const plan = findPlan(planId);
+    const plan = typeof planId === 'string' ? findPlan(db, planId) : null;
     if (!plan) throw invalid('plan', 'Pick a plan');
-    stmts.updatePlan.run(plan.id, plan.price === 0 ? 'active' : 'pending_payment', now().toISOString(), userId);
+    stmts.upsertMembership.run({ userId, planId: plan.id, status: plan.price === 0 ? 'ACTIVE' : 'PENDING_PAYMENT', now: now().toISOString() });
     return publicUser(stmts.userById.get(userId));
   }
 
@@ -223,7 +247,7 @@ function createAuth(db, { mailer, now = () => new Date() } = {}) {
 
   return {
     signup, login, logout, userForToken, updateProfile, choosePlan, requestPasswordReset, resetPassword,
-    plans: () => PLANS,
+    plans: () => listPlans(db),
   };
 }
 

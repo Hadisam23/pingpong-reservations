@@ -39,11 +39,12 @@ See [SPEC.md](SPEC.md) for the full product spec (the build prompt this project 
 npm install
 ADMIN_PASSWORD=choose-something npm start   # http://localhost:3000
 npm test                                     # API test suite
-npm run seed                                 # demo data: 5 tables + random reservations of every type
+npm run seed                                 # demo world: 4 tables, coaches, classes, demo accounts, bookings
 ```
 
-`npm run seed` **replaces all bookings** in `DB_PATH`. Pass `-- --seed 42` to get the same data
-every time.
+`npm run seed` **replaces all bookings**, classes, coaches, price rules and promo codes in `DB_PATH`,
+and recreates the `@rallyclub.test` demo accounts. Other accounts are kept. Pass `-- --seed 42` to get
+the same data every time.
 
 | Env var | Default | Purpose |
 |---|---|---|
@@ -77,7 +78,8 @@ release builds, use your deployed HTTPS server.
 
 The e2e test needs the root dependencies too (`npm install` in the repo root).
 
-Five tables and default opening hours/prices are created on first start. Change them in **Admin → Settings**.
+Four tables (Tables 1–3 in the Main hall, Table 4 in the Private room) and default opening hours/prices
+are created on first start. Change them in **Admin → Settings**.
 
 ## Accounts (Phase 2)
 
@@ -158,6 +160,29 @@ Errors always look like `{ "error": { "code": "slot_taken", "message": "…" } }
 | GET/POST | `/api/admin/tables` | List / add tables |
 | PATCH | `/api/admin/tables/:id` | `{ name, active }`. Can't deactivate a table with upcoming bookings |
 
+## Data & demo world (Phase 3)
+
+The database schema is versioned. `src/migrations.js` lists the steps; each runs once, in a
+transaction, and the version is kept in SQLite's `user_version`. Older databases are upgraded in
+place on start (existing tables move to the Main hall, Phase 2 plans become memberships).
+
+New tables: areas, membership plans and memberships, price rules, coaches (availability, time off),
+lesson types, class sessions, booking participants, waitlist, credit ledger, lesson packs, promo
+codes, notifications. Bookings gained a kind (table, lesson or class) and an optional account.
+New times are stored in UTC; table bookings keep the club's local date and minutes.
+
+`npm run seed` creates:
+
+| | |
+|---|---|
+| Accounts (password `rally-demo-2026`) | `player@rallyclub.test` (Noa Cohen, Club member: 3 table credits, lesson pack 4 of 10 left, upcoming table, lesson and open play, waitlisted for a full class), `coach@rallyclub.test` (Dana Peretz), `admin@rallyclub.test` |
+| Coaches | Dana Peretz, Yossi Ben-David, Lina Haddad, with weekly hours (one has time off) |
+| Lessons | Private (60 min), Semi-private (60 min), Video analysis (45 min) |
+| Classes this week | Beginner fundamentals, Intermediate drills (full), Kids club, Match tactics, Open play |
+| Other | 6 price rules (30, 60 and 90 min; weekday peak after 17:00, weekend rate), promo `WELCOME10`, a maintenance block, ~250 random table bookings |
+
+Names, prices and schedules are placeholders.
+
 ## Project layout
 
 ```
@@ -166,11 +191,13 @@ src/app.js           Express app: routes, admin auth, error handling
 src/service.js       booking rules: availability, pricing, create/cancel, admin actions
 src/settings.js      default settings + validation
 src/time.js          date/time helpers (center time zone)
-src/db.js            SQLite schema
-src/seed.js          random demo data
+src/db.js            opens SQLite and runs migrations
+src/migrations.js    versioned schema steps
+src/plans.js         membership plans
+src/seed.js          demo world (accounts, coaches, classes, random bookings)
 scripts/seed.js      `npm run seed`
 public/              booking page, manage page, admin panel (plain HTML/CSS/JS)
-test/                API + seed tests (node:test)
+test/                API, auth, migration, seed and design-token tests (node:test)
 mobile/              Capacitor app: ios/ project, build script, e2e + simulator tests
 ```
 

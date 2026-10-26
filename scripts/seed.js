@@ -1,5 +1,5 @@
 // Usage: npm run seed [-- --seed 42]
-// Replaces ALL bookings and blocks in DB_PATH with random demo data.
+// Resets the demo data in DB_PATH (see src/seed.js). Accounts outside @rallyclub.test are kept.
 const path = require('path');
 const { openDb } = require('../src/db');
 const { createService } = require('../src/service');
@@ -11,7 +11,14 @@ const seed = seedArg >= 0 ? Number(args[seedArg + 1]) : Date.now() % 1e9;
 
 const dbFile = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'pingpong.db');
 const db = openDb(dbFile);
-const result = seedDemo(db, createService(db), { seed });
+const r = seedDemo(db, createService(db), { seed });
 db.close();
 
-console.log(`Seeded ${dbFile} (seed ${seed}): ${result.tables} tables, ${result.bookings} bookings`);
+console.log(`Seeded ${dbFile} (seed ${seed})
+  ${r.areas} areas · ${r.tables} tables · ${r.plans} plans · ${r.priceRules} price rules
+  ${r.coaches} coaches · ${r.lessonTypes} lesson types · ${r.classes} classes · ${r.bookings} bookings
+
+Demo logins (password: ${r.logins.password})
+  player  ${r.logins.player}
+  coach   ${r.logins.coach}
+  admin   ${r.logins.admin}`);

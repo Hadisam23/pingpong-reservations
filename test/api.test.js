@@ -43,7 +43,7 @@ test('config and availability', async () => {
 
   const av = await call('GET', `/api/availability?date=${TODAY}`);
   assert.equal(av.status, 200);
-  assert.equal(av.body.tables.length, 5);
+  assert.equal(av.body.tables.length, 4);
   assert.equal(av.body.slots[0].time, '10:00');
   assert.equal(av.body.slots.at(-1).time, '22:30');
   assert.equal(av.body.slots.find(s => s.time === '12:00').past, true);
@@ -131,15 +131,15 @@ test('limits upcoming bookings per phone', async () => {
 test('blocks make time unavailable', async () => {
   const blocked = await call('POST', '/api/admin/blocks', { tableId: null, date: NEXT_SUN, start: '18:00', end: '20:00', reason: 'Tournament' }, adminHeaders);
   assert.equal(blocked.status, 201);
-  assert.equal((await book({ start: '19:00', tableId: 5 })).body.error.code, 'slot_blocked');
+  assert.equal((await book({ start: '19:00', tableId: 4 })).body.error.code, 'slot_blocked');
   const av = await call('GET', `/api/availability?date=${NEXT_SUN}`);
   assert.deepEqual(av.body.tables[3].busy, [{ start: 1080, end: 1200 }]);
 
   await call('DELETE', `/api/admin/blocks/${blocked.body.block.id}`, undefined, adminHeaders);
-  assert.equal((await book({ start: '19:00', tableId: 5 })).status, 201);
+  assert.equal((await book({ start: '19:00', tableId: 4 })).status, 201);
 
   // A new block reports the bookings it clashes with
-  const clash = await call('POST', '/api/admin/blocks', { tableId: 5, date: NEXT_SUN, start: '19:00', end: '19:30' }, adminHeaders);
+  const clash = await call('POST', '/api/admin/blocks', { tableId: 4, date: NEXT_SUN, start: '19:00', end: '19:30' }, adminHeaders);
   assert.equal(clash.body.conflicts.length, 1);
 });
 
@@ -213,7 +213,7 @@ test('admin: tables and settings', async () => {
   assert.equal(deactivate.body.error.code, 'table_has_bookings');
   assert.equal((await call('PATCH', '/api/admin/tables/3', { active: false, name: 'Broken' }, adminHeaders)).body.active, false);
   const av = await call('GET', `/api/availability?date=${NEXT_SUN}`);
-  assert.equal(av.body.tables.length, 5); // 5 + 1 added - 1 inactive
+  assert.equal(av.body.tables.length, 4); // 4 + 1 added - 1 inactive
 
   const bad = await call('PUT', '/api/admin/settings', { durations: [45] }, adminHeaders);
   assert.equal(bad.status, 400);
