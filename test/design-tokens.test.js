@@ -64,6 +64,7 @@ test('no raw colours outside tokens.css', () => {
     if (file === 'tokens.css' || !/\.(css|js|html)$/.test(file)) continue;
     const lines = fs.readFileSync(path.join(PUBLIC, file), 'utf8').split('\n');
     lines.forEach((line, i) => {
+      if (/name="theme-color"/.test(line)) return; // a meta tag can't read CSS variables
       const code = line.replace(/&#\d+;/g, '');
       if (/#[0-9a-fA-F]{3,8}\b(?![\w-])/.test(code) && !/href="#|#[a-z]+[A-Z]?\w*['"`)]/.test(code)) offenders.push(`${file}:${i + 1}`);
       if (/rgba?\(/.test(code)) offenders.push(`${file}:${i + 1}`);

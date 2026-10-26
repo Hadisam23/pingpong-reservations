@@ -8,7 +8,7 @@
     "sync": "npm run build && cap sync ios",
     "open": "cap open ios",
     "ios": "npm run sync && cap run ios",
-    "test:e2e": "node --test --test-concurrency=1 test/e2e.test.js test/styleguide.test.js",
+    "test:e2e": "node --test --test-concurrency=1 test/e2e.test.js test/styleguide.test.js test/auth-flow.test.js",
     "test:ios": "bash scripts/test-ios.sh"
   },
   "engines": {

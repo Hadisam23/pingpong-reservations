@@ -2,16 +2,23 @@ const express = require('express');
 const path = require('path');
 const { openDb } = require('./db');
 const { createService, ApiError, safeEqual } = require('./service');
+const { createAuth } = require('./auth');
+const { createMailer } = require('./mailer');
 
 // Origins the Capacitor app runs on (iOS: capacitor://localhost, Android: http(s)://localhost).
 const APP_ORIGINS = ['capacitor://localhost', 'ionic://localhost', 'http://localhost', 'https://localhost'];
 
-function createApp({ dbFile = ':memory:', adminPassword = null, baseUrl = null, corsOrigins = [], now } = {}) {
+const SESSION_COOKIE = 'rc_session';
+
+function createApp({ dbFile = ':memory:', adminPassword = null, baseUrl = null, corsOrigins = [], now, mailer = createMailer({ log: false }) } = {}) {
   const db = openDb(dbFile);
   const service = createService(db, { now });
+  const auth = createAuth(db, { mailer, now });
   const app = express();
 
   app.disable('x-powered-by');
+  // Behind a local/private proxy (Railway, ngrok) trust X-Forwarded-* for req.ip and req.secure
+  app.set('trust proxy', 'loopback, linklocal, uniquelocal');
   app.use(express.json({ limit: '50kb' }));
 
   const allowedOrigins = new Set([...APP_ORIGINS, ...corsOrigins]);
@@ -72,6 +79,54 @@ function createApp({ dbFile = ':memory:', adminPassword = null, baseUrl = null, 
     res.json(service.cancelByCustomer(req.params.code, { token: req.body.token, phone: req.body.phone }));
   });
 
+  // ---------- accounts ----------
+  // The website uses an HttpOnly cookie. The iOS app runs on another origin and can't share
+  // that cookie, so it keeps the token from the response and sends it as a Bearer header.
+
+  const readCookie = (req, name) => {
+    const match = (req.get('cookie') || '').split(/;\s*/).find(c => c.startsWith(`${name}=`));
+    return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
+  };
+  const sessionToken = req => {
+    const bearer = /^Bearer (.+)$/.exec(req.get('authorization') || '');
+    return bearer ? bearer[1] : readCookie(req, SESSION_COOKIE);
+  };
+  const setSessionCookie = (req, res, { token, expiresAt }) => {
+    res.cookie(SESSION_COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: req.secure, path: '/', expires: new Date(expiresAt) });
+  };
+  const requireUser = (req, res, next) => {
+    req.user = auth.userForToken(sessionToken(req));
+    if (!req.user) throw new ApiError(401, 'not_signed_in', 'Please log in to continue.');
+    next();
+  };
+  const signedIn = (req, res, result, status = 200) => {
+    setSessionCookie(req, res, result);
+    res.status(status).json({ user: result.user, token: result.token });
+  };
+
+  api.get('/plans', (req, res) => {
+    const { currency } = service.getSettings();
+    res.json(auth.plans().map(plan => ({ ...plan, currency })));
+  });
+  api.post('/auth/signup', (req, res) => signedIn(req, res, auth.signup(req.body), 201));
+  api.post('/auth/login', (req, res) => signedIn(req, res, auth.login(req.body, { ip: req.ip })));
+  api.post('/auth/logout', (req, res) => {
+    auth.logout(sessionToken(req));
+    res.clearCookie(SESSION_COOKIE, { path: '/' });
+    res.status(204).end();
+  });
+  api.post('/auth/forgot', (req, res) => {
+    auth.requestPasswordReset(req.body.email, { baseUrl: publicUrl(req) });
+    res.json({ ok: true });
+  });
+  api.post('/auth/reset', (req, res) => signedIn(req, res, auth.resetPassword(req.body)));
+
+  // "Who am I, if anyone?" — no error for guests (pages that need an account use /me)
+  api.get('/session', (req, res) => res.json({ user: auth.userForToken(sessionToken(req)) }));
+  api.get('/me', requireUser, (req, res) => res.json(req.user));
+  api.patch('/me', requireUser, (req, res) => res.json(auth.updateProfile(req.user.id, req.body)));
+  api.put('/me/plan', requireUser, (req, res) => res.json(auth.choosePlan(req.user.id, req.body.plan)));
+
   // ---------- admin API ----------
 
   const admin = express.Router();
@@ -117,6 +172,10 @@ function createApp({ dbFile = ':memory:', adminPassword = null, baseUrl = null, 
   app.get('/manage', (req, res) => res.sendFile(path.join(pub, 'manage.html')));
   app.get('/admin', (req, res) => res.sendFile(path.join(pub, 'admin.html')));
   app.get('/styleguide', (req, res) => res.sendFile(path.join(pub, 'styleguide.html')));
+  for (const [route, file] of [['/welcome', 'welcome'], ['/signup', 'signup'], ['/login', 'login'],
+    ['/forgot-password', 'forgot'], ['/reset-password', 'reset'], ['/profile', 'profile'], ['/profile/edit', 'profile-edit']]) {
+    app.get(route, (req, res) => res.sendFile(path.join(pub, `${file}.html`)));
+  }
   app.use(express.static(pub));
 
   app.use('/api', (req, res) => {
@@ -126,7 +185,7 @@ function createApp({ dbFile = ':memory:', adminPassword = null, baseUrl = null, 
   // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, next) => {
     if (err instanceof ApiError) {
-      return res.status(err.status).json({ error: { code: err.code, message: err.message } });
+      return res.status(err.status).json({ error: { code: err.code, message: err.message, ...(err.details || {}) } });
     }
     if (err.type === 'entity.parse.failed') {
       return res.status(400).json({ error: { code: 'invalid_json', message: 'Request body is not valid JSON' } });
@@ -135,7 +194,7 @@ function createApp({ dbFile = ':memory:', adminPassword = null, baseUrl = null, 
     res.status(500).json({ error: { code: 'server_error', message: 'Something went wrong. Please try again.' } });
   });
 
-  return { app, service, db };
+  return { app, service, auth, mailer, db };
 }
 
 module.exports = { createApp };

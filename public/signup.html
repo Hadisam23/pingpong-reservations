@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Create account · Rally Club</title>
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+</head>
+<body class="ui-app ui-page--white">
+  <!-- Step 1 of 3: the account -->
+  <main class="ui-screen" id="stepAccount" aria-labelledby="accountTitle">
+    <div class="ui-screen__top">
+      <a class="ui-icon-btn" href="welcome.html" aria-label="Back"><span data-ui-icon="back"></span></a>
+      <span class="ui-steps-label">Step 1 of 3</span>
+    </div>
+    <div class="ui-steps" style="margin-top: var(--space-4)" aria-hidden="true"><span class="is-done"></span><span></span><span></span></div>
+
+    <h1 class="ui-h1 ui-screen__title" id="accountTitle">Create your account</h1>
+    <p class="ui-screen__lede">It takes under a minute.</p>
+
+    <form class="ui-form" id="accountForm" novalidate>
+      <div class="ui-form__alert" role="alert" tabindex="-1" hidden></div>
+      <div class="ui-field">
+        <label class="ui-field__label" for="name">Full name</label>
+        <input class="ui-input" id="name" name="name" autocomplete="name" placeholder="First and last name" maxlength="60">
+      </div>
+      <div class="ui-field">
+        <label class="ui-field__label" for="email">Email</label>
+        <input class="ui-input" id="email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com">
+      </div>
+      <div class="ui-form__row">
+        <div class="ui-field">
+          <label class="ui-field__label" for="phone">Phone</label>
+          <input class="ui-input" id="phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="For reminders">
+        </div>
+        <div class="ui-field">
+          <label class="ui-field__label" for="password">Password</label>
+          <input class="ui-input" id="password" name="password" type="password" autocomplete="new-password" placeholder="8+ characters">
+        </div>
+      </div>
+      <div class="ui-field">
+        <span class="ui-field__label" id="levelLabel">Your level</span>
+        <div class="ui-radio-cards--2" id="levels" name="skillLevel" style="grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2)"></div>
+      </div>
+      <div class="ui-field">
+        <label class="ui-check"><input type="checkbox" id="terms" name="acceptTerms"> <span>I agree to the club rules, terms and cancellation policy.</span></label>
+      </div>
+    </form>
+
+    <div class="ui-screen__spacer"></div>
+
+    <button class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block" type="submit" form="accountForm" id="accountSubmit">Continue <span data-ui-icon="arrow-right"></span></button>
+    <a class="ui-link ui-center-link" href="login.html">I already have an account</a>
+  </main>
+
+  <!-- Step 2 of 3: membership (also used to change plan from the profile) -->
+  <main class="ui-screen" id="stepPlan" aria-labelledby="planTitle" hidden>
+    <div class="ui-screen__top">
+      <a class="ui-icon-btn" href="profile.html" aria-label="Back" id="planBack"><span data-ui-icon="back"></span></a>
+      <span class="ui-steps-label" id="planStep">Step 2 of 3</span>
+    </div>
+    <div class="ui-steps ui-steps--strong" style="margin-top: var(--space-4)" id="planSteps" aria-hidden="true"><span class="is-done"></span><span class="is-done"></span><span></span></div>
+
+    <h1 class="ui-h1 ui-screen__title" id="planTitle">Choose a membership</h1>
+    <p class="ui-screen__lede">Change or cancel anytime from your profile.</p>
+
+    <form id="planForm" novalidate>
+      <div class="ui-radio-cards" role="radiogroup" aria-labelledby="planTitle" id="plans"></div>
+    </form>
+
+    <div class="ui-screen__spacer"></div>
+
+    <button class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block" type="submit" form="planForm" id="planSubmit">Continue with Club</button>
+    <button class="ui-btn ui-btn--ghost ui-btn--md ui-btn--block" type="button" id="planSkip" style="--b-fs: var(--fs-body); --b-weight: var(--weight-semibold); margin-top: var(--space-2)">Skip for now</button>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script src="ui.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const changing = params.get('change') === '1';   // opened from the profile
+    let plans = [];
+
+    // ---------- step 1 ----------
+    const levels = UI.chips(document.getElementById('levels'), {
+      label: 'Your level', block: true, value: 'intermediate',
+      options: Object.entries(LEVELS).map(([value, label]) => ({ value, label })),
+    });
+    document.getElementById('levels').setAttribute('aria-labelledby', 'levelLabel');
+
+    const form = document.getElementById('accountForm');
+    const field = id => document.getElementById(id);
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      UI.clearErrors(form);
+      // Quick checks before asking the server (which checks everything again)
+      const checks = [
+        [field('name'), v => v.trim().split(/\s+/).join(' ').length >= 2, 'Enter your first and last name'],
+        [field('email'), v => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim()), 'Enter a valid email address'],
+        [field('phone'), v => v.replace(/\D/g, '').length >= 9, 'Enter a valid phone number'],
+        [field('password'), v => v.length >= 8, 'Use 8 or more characters'],
+      ];
+      const failed = checks.filter(([input, ok, msg]) => !ok(input.value) && (UI.fieldError(input, msg), true));
+      if (!field('terms').checked) UI.fieldError(field('terms'), 'Please agree to the club rules to continue');
+      if (failed.length || !field('terms').checked) {
+        (failed[0] ? failed[0][0] : field('terms')).focus();
+        return;
+      }
+      const btn = document.getElementById('accountSubmit');
+      UI.setLoading(btn, true);
+      try {
+        await Auth.signup({
+          name: field('name').value, email: field('email').value, phone: field('phone').value,
+          password: field('password').value, skillLevel: levels.get(), acceptTerms: true,
+        });
+        location.replace('signup.html#plan');
+        showPlanStep();
+      } catch (err) {
+        UI.showError(form, err, { skillLevel: document.querySelector('#levels .ui-chip'), acceptTerms: field('terms') });
+      } finally {
+        UI.setLoading(btn, false);
+      }
+    });
+
+    // ---------- step 2 ----------
+    function renderPlans(selected) {
+      document.getElementById('plans').innerHTML = plans.map(p => `
+        <label class="ui-radio-card">
+          ${p.popular ? '<span class="ui-badge ui-badge--popular">Most popular</span>' : ''}
+          <input type="radio" name="plan" value="${p.id}" ${p.id === selected ? 'checked' : ''}>
+          <span class="ui-radio-card__body"><span class="ui-radio-card__dot" aria-hidden="true"></span><span class="ui-radio-card__main">
+            <span class="ui-radio-card__head"><span class="ui-radio-card__name">${UI.esc(p.name)}</span>
+              <span class="ui-radio-card__price">${p.price ? `${UI.esc(money(p.price, p.currency))}<span class="ui-radio-card__per"> /mo</span>` : 'Free'}</span></span>
+            ${p.perks.length
+              ? `<ul class="ui-radio-card__perks">${p.perks.map(k => `<li>${UI.icon('check')}${UI.esc(k)}</li>`).join('')}</ul>`
+              : `<span class="ui-radio-card__desc">${UI.esc(p.summary)}</span>`}
+          </span></span>
+        </label>`).join('');
+      syncPlanButton();
+    }
+
+    const chosenPlan = () => (document.querySelector('input[name="plan"]:checked') || {}).value;
+    function syncPlanButton() {
+      const plan = plans.find(p => p.id === chosenPlan());
+      document.getElementById('planSubmit').textContent = plan ? `Continue with ${plan.name}` : 'Continue';
+    }
+    document.getElementById('plans').addEventListener('change', syncPlanButton);
+
+    async function savePlan(planId) {
+      const plan = plans.find(p => p.id === planId);
+      const btn = document.getElementById('planSubmit');
+      UI.setLoading(btn, true);
+      try {
+        const user = await Auth.choosePlan(planId);
+        sessionStorage.setItem('rc.flash', user.plan.status === 'pending_payment'
+          ? `${plan.name} plan saved. Online payment for memberships is coming soon.`
+          : `You're on ${plan.name}.`);
+        location.replace('profile.html');
+      } catch (err) {
+        UI.toast(err.message, { kind: 'error' });
+        UI.setLoading(btn, false);
+      }
+    }
+    document.getElementById('planForm').addEventListener('submit', e => { e.preventDefault(); if (chosenPlan()) savePlan(chosenPlan()); });
+    document.getElementById('planSkip').addEventListener('click', () => savePlan('dropin'));
+
+    async function showPlanStep() {
+      const user = await Auth.requireUser();
+      plans = await Auth.plans();
+      document.getElementById('stepAccount').hidden = true;
+      document.getElementById('stepPlan').hidden = false;
+      document.title = 'Choose a membership · Rally Club';
+      if (changing) {
+        document.getElementById('planStep').hidden = true;
+        document.getElementById('planSteps').hidden = true;
+        document.getElementById('planTitle').textContent = 'Your membership';
+        document.getElementById('planSkip').hidden = true;
+      }
+      renderPlans(changing ? user.plan.id : 'club');
+    }
+
+    // Signed in already (back from step 2, or "Upgrade" on the profile): show the plan step
+    if (location.hash === '#plan' || changing) showPlanStep();
+    else Auth.me().then(user => { if (user) showPlanStep(); }).catch(() => {});
+  </script>
+</body>
+</html>

@@ -201,12 +201,15 @@
   // ---------- pressed-state chips (filters, skill level) ----------
   // UI.chips(el, { options: [{ value, label }], value, onChange, multi: false, block: false })
   function chips(el, o) {
+    // Exposes the current value on the element so forms can read it.
+    const sync = () => { el.dataset.value = o.multi ? o.value.join(',') : o.value; };
     const selected = () => (o.multi ? o.value : [o.value]);
     const render = () => {
       el.setAttribute('role', 'group');
       el.setAttribute('aria-label', o.label || 'Filters');
       el.innerHTML = o.options.map(opt => `<button type="button" class="ui-chip${o.block ? ' ui-chip--block' : ''}" data-value="${esc(opt.value)}"
         aria-pressed="${selected().includes(opt.value)}">${esc(opt.label)}</button>`).join('');
+      sync();
     };
     render();
     el.addEventListener('click', e => {
@@ -270,6 +273,52 @@
     return `<span class="ui-logo${onNavy ? ' ui-logo--on-navy' : ''}"><span class="ui-logo__tile">${icon('mark')}</span><span class="ui-logo__name">${esc(name)}</span></span>`;
   }
 
-  window.UI = { icon, hydrate, button, setLoading, iconButton, dateStrip, segmented, slots, options, chips, toast, qrPlaceholder, logo, esc };
+  // ---------- form errors ----------
+  // Shows a message under the field (aria-invalid + aria-describedby); clears with clearErrors.
+  function fieldError(input, message) {
+    const field = input.closest('.ui-field') || input.parentElement;
+    let el = field.querySelector('.ui-field__error');
+    if (!el) {
+      el = document.createElement('span');
+      el.className = 'ui-field__error';
+      el.id = `${input.id || input.name || 'f' + Math.random().toString(36).slice(2)}-error`;
+      field.appendChild(el);
+    }
+    el.textContent = message;
+    input.setAttribute('aria-invalid', 'true');
+    const ids = new Set((input.getAttribute('aria-describedby') || '').split(' ').filter(Boolean));
+    ids.add(el.id);
+    input.setAttribute('aria-describedby', [...ids].join(' '));
+  }
+
+  // A field's error goes away as soon as the person edits it.
+  document.addEventListener('input', e => {
+    const input = e.target;
+    if (!(input instanceof HTMLElement) || input.getAttribute('aria-invalid') !== 'true') return;
+    input.removeAttribute('aria-invalid');
+    const field = input.closest('.ui-field');
+    const err = field && field.querySelector('.ui-field__error');
+    if (err) err.remove();
+  });
+
+  function clearErrors(root) {
+    root.querySelectorAll('.ui-field__error').forEach(el => el.remove());
+    root.querySelectorAll('[aria-invalid="true"]').forEach(el => el.removeAttribute('aria-invalid'));
+    root.querySelectorAll('.ui-form__alert').forEach(el => { el.hidden = true; });
+  }
+
+  // Maps an API error to the field it names (error.field), else shows it in the form's alert.
+  function showError(form, err, fields = {}) {
+    const input = err.field && (fields[err.field] || form.querySelector(`[name="${err.field}"]`));
+    if (input) {
+      fieldError(input, err.message);
+      input.focus();
+      return;
+    }
+    const alert = form.querySelector('.ui-form__alert');
+    if (alert) { alert.textContent = err.message; alert.hidden = false; alert.focus(); } else toast(err.message, { kind: 'error' });
+  }
+
+  window.UI = { icon, hydrate, button, setLoading, iconButton, dateStrip, segmented, slots, options, chips, toast, qrPlaceholder, logo, esc, fieldError, clearErrors, showError };
   hydrate();
 })();

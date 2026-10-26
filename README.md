@@ -79,6 +79,31 @@ The e2e test needs the root dependencies too (`npm install` in the repo root).
 
 Five tables and default opening hours/prices are created on first start. Change them in **Admin → Settings**.
 
+## Accounts (Phase 2)
+
+Players can create an account (email + password), pick a membership, and manage their profile.
+**Guest booking keeps working without an account.**
+
+| Page | What it does |
+|---|---|
+| `/welcome` | Create account, log in, or book as a guest |
+| `/signup` | Step 1: name, email, phone, password, level, terms. Step 2: choose a membership (`?change=1` from the profile) |
+| `/login`, `/forgot-password`, `/reset-password` | Log in; reset by an emailed, single-use link that expires in 1 hour |
+| `/profile`, `/profile/edit` | Name, level, membership card, club rules, log out |
+
+- Passwords are hashed with scrypt. Sessions last 30 days and only token hashes are stored.
+- The website keeps the session in an HttpOnly cookie. The iOS app (another origin) keeps the token
+  and sends `Authorization: Bearer`.
+- 10 failed logins per email or IP in 15 minutes → wait 15 minutes.
+- **Email:** until real email is set up (Phase 8), messages such as reset links are printed to the
+  server console.
+- **Paid plans** are saved as "payment pending" until Stripe is connected (Phase 6). Plan prices in
+  `src/plans.js` are placeholders.
+- Google and Apple sign-in come later. They need OAuth keys.
+
+API: `POST /api/auth/signup | login | logout | forgot | reset`, `GET /api/session` (current user or
+null), `GET|PATCH /api/me`, `PUT /api/me/plan`, `GET /api/plans`.
+
 ## Design system
 
 The UI follows the Rally Club design in `docs/design/screens/` and `docs/BUILD_SPEC.md` (§1). Open

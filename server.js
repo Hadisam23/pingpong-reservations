@@ -6,7 +6,8 @@ const dbFile = process.env.DB_PATH || path.join(__dirname, 'data', 'pingpong.db'
 const adminPassword = process.env.ADMIN_PASSWORD || null;
 
 const corsOrigins = (process.env.CORS_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
-const { app, db } = createApp({ dbFile, adminPassword, corsOrigins, baseUrl: process.env.BASE_URL || null });
+const { createMailer } = require('./src/mailer');
+const { app, db } = createApp({ dbFile, adminPassword, corsOrigins, baseUrl: process.env.BASE_URL || null, mailer: createMailer({ log: true }) });
 
 if (!adminPassword) {
   console.warn('ADMIN_PASSWORD is not set: the admin panel is disabled.');
@@ -14,7 +15,7 @@ if (!adminPassword) {
 
 const server = app.listen(PORT, () => {
   console.log(`Ping pong reservations running on http://localhost:${PORT}`);
-  console.log(`  Booking page: /    Manage booking: /manage    Admin: /admin`);
+  console.log(`  Booking page: /    Sign in: /welcome    Manage booking: /manage    Admin: /admin    Styleguide: /styleguide`);
   console.log(`  Database: ${dbFile}`);
 });
 

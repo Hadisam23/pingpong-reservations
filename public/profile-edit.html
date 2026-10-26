@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Edit profile · Rally Club</title>
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+</head>
+<body class="ui-app ui-page--white">
+  <main class="ui-screen" aria-labelledby="title">
+    <div class="ui-screen__head">
+      <a class="ui-icon-btn" href="profile.html" aria-label="Back"><span data-ui-icon="back"></span></a>
+      <h1 class="ui-h2" id="title">Edit profile</h1>
+    </div>
+
+    <form class="ui-form" id="form" novalidate style="margin-top: var(--space-6)" aria-busy="true">
+      <div class="ui-form__alert" role="alert" tabindex="-1" hidden></div>
+      <div class="ui-field">
+        <label class="ui-field__label" for="name">Full name</label>
+        <input class="ui-input" id="name" name="name" autocomplete="name" maxlength="60">
+      </div>
+      <div class="ui-field">
+        <label class="ui-field__label" for="email">Email</label>
+        <input class="ui-input" id="email" name="email" type="email" autocomplete="email" inputmode="email">
+      </div>
+      <div class="ui-field">
+        <label class="ui-field__label" for="phone">Phone</label>
+        <input class="ui-input" id="phone" name="phone" type="tel" autocomplete="tel" inputmode="tel">
+      </div>
+      <div class="ui-field">
+        <span class="ui-field__label" id="levelLabel">Your level</span>
+        <div class="ui-radio-cards--2" id="levels" style="grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2)"></div>
+      </div>
+    </form>
+
+    <div class="ui-screen__spacer"></div>
+
+    <button class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block" type="submit" form="form" id="submit">Save changes</button>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script src="ui.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    const form = document.getElementById('form');
+    const field = id => document.getElementById(id);
+    let levels;
+
+    Auth.requireUser().then(user => {
+      field('name').value = user.name;
+      field('email').value = user.email;
+      field('phone').value = user.phone || '';
+      levels = UI.chips(field('levels'), {
+        label: 'Your level', block: true, value: user.skillLevel,
+        options: Object.entries(LEVELS).map(([value, label]) => ({ value, label })),
+      });
+      field('levels').setAttribute('aria-labelledby', 'levelLabel');
+      form.removeAttribute('aria-busy');
+    });
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      UI.clearErrors(form);
+      const btn = field('submit');
+      UI.setLoading(btn, true);
+      try {
+        await Auth.update({ name: field('name').value, email: field('email').value, phone: field('phone').value, skillLevel: levels.get() });
+        sessionStorage.setItem('rc.flash', 'Profile saved');
+        location.replace('profile.html');
+      } catch (err) {
+        UI.setLoading(btn, false);
+        UI.showError(form, err);
+      }
+    });
+  </script>
+</body>
+</html>

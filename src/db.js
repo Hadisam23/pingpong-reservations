@@ -45,6 +45,37 @@ const SCHEMA = `
     createdAt TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_blocks_date ON blocks(date);
+
+  -- Accounts (Phase 2). Guest bookings keep working without one.
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    phone TEXT,
+    passwordHash TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'PLAYER',
+    skillLevel TEXT NOT NULL,
+    planId TEXT NOT NULL DEFAULT 'dropin',
+    planStatus TEXT NOT NULL DEFAULT 'active',
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
+  );
+
+  -- Only a SHA-256 of each token is stored, so a leaked database can't be used to log in.
+  CREATE TABLE IF NOT EXISTS sessions (
+    tokenHash TEXT PRIMARY KEY,
+    userId INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    createdAt TEXT NOT NULL,
+    expiresAt TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(userId);
+
+  CREATE TABLE IF NOT EXISTS password_resets (
+    tokenHash TEXT PRIMARY KEY,
+    userId INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expiresAt TEXT NOT NULL,
+    usedAt TEXT
+  );
 `;
 
 const INITIAL_TABLE_COUNT = 5;

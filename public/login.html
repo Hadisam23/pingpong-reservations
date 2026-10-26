@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Log in · Rally Club</title>
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+</head>
+<body class="ui-app ui-page--white">
+  <main class="ui-screen" aria-labelledby="title">
+    <div class="ui-screen__top">
+      <a class="ui-icon-btn" href="welcome.html" aria-label="Back"><span data-ui-icon="back"></span></a>
+    </div>
+
+    <h1 class="ui-h1 ui-screen__title" id="title">Welcome back</h1>
+    <p class="ui-screen__lede">Log in to book tables and lessons.</p>
+
+    <form class="ui-form" id="form" novalidate>
+      <div class="ui-form__alert" role="alert" tabindex="-1" hidden></div>
+      <div class="ui-field">
+        <label class="ui-field__label" for="email">Email</label>
+        <input class="ui-input" id="email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com">
+      </div>
+      <div class="ui-field">
+        <label class="ui-field__label" for="password">Password</label>
+        <input class="ui-input" id="password" name="password" type="password" autocomplete="current-password">
+      </div>
+      <a class="ui-link" href="forgot.html" style="align-self: flex-end">Forgot password?</a>
+    </form>
+
+    <div class="ui-screen__spacer"></div>
+
+    <button class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block" type="submit" form="form" id="submit">Log in</button>
+    <a class="ui-link ui-center-link" href="signup.html">New here? Create an account</a>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script src="ui.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    const next = Auth.safeNext(new URLSearchParams(location.search).get('next'));
+    const form = document.getElementById('form');
+    const email = document.getElementById('email');
+    const password = document.getElementById('password');
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      UI.clearErrors(form);
+      if (!email.value.trim()) { UI.fieldError(email, 'Enter your email'); email.focus(); return; }
+      if (!password.value) { UI.fieldError(password, 'Enter your password'); password.focus(); return; }
+      const btn = document.getElementById('submit');
+      UI.setLoading(btn, true);
+      try {
+        await Auth.login({ email: email.value, password: password.value });
+        location.replace(next);
+      } catch (err) {
+        UI.setLoading(btn, false);
+        UI.showError(form, err);
+      }
+    });
+
+    Auth.me().then(user => { if (user) location.replace(next); }).catch(() => {});
+  </script>
+</body>
+</html>

@@ -14,6 +14,7 @@
       <a class="brand" href="index.html"><span data-icon="brand"></span><span class="brand__name" id="brandName">Ping Pong Center</span></a>
       <div class="app-header__end">
         <a class="btn btn--secondary btn--sm" href="manage.html"><span data-icon="search"></span>Find my booking</a>
+        <a class="btn btn--primary btn--sm" href="welcome.html" id="accountLink">Log in</a>
       </div>
     </div>
   </header>
@@ -113,7 +114,15 @@
 
   <script src="config.js"></script>
   <script src="common.js"></script>
+  <script src="auth.js"></script>
   <script>
+    Auth.me().then(user => {
+      if (!user) return;
+      const link = document.getElementById('accountLink');
+      link.textContent = firstName(user.name);
+      link.href = 'profile.html';
+    }).catch(() => {});
+
     const state = { config: null, date: null, type: null, duration: null, avail: null, sel: null };
     const MY_KEY = 'pp.bookings';
 

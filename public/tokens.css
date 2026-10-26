@@ -33,8 +33,11 @@
   --on-navy-muted: #C7D2E3;   /* secondary text on navy */
   --on-navy-soft:  #DCE3EE;   /* benefit list on navy */
   --on-navy-line:  rgba(255, 255, 255, 0.35);  /* outline-on-navy border */
+  --on-navy-line-strong: rgba(255, 255, 255, 0.4);  /* outline button on Welcome */
   --on-navy-fill:  rgba(255, 255, 255, 0.12);  /* pill on navy */
   --table-line:    rgba(255, 255, 255, 0.10);  /* the "table line" across navy cards */
+  --welcome-line:  rgba(255, 255, 255, 0.14);  /* Welcome: the table's centre line */
+  --welcome-net:   rgba(255, 255, 255, 0.07);  /* Welcome: the net */
   --orange:   #F97316;   /* the ball: fills only */
   --orange-text: #C2410C;  /* orange text on white */
   --orange-200: #FED7AA;

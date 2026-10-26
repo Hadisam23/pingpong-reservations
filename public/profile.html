@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Profile · Rally Club</title>
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+</head>
+<body class="ui-app">
+  <div class="ui-shell">
+    <main class="ui-screen ui-screen--app" aria-labelledby="name" aria-busy="true" id="screen">
+      <!-- loading: the final layout in grey -->
+      <div class="ui-profile-head" id="headSkeleton" aria-hidden="true">
+        <span class="ui-skel" style="width: 60px; height: 60px; border-radius: var(--radius-full)"></span>
+        <div style="flex: 1 1 auto; display: grid; gap: var(--space-2)"><span class="ui-skel ui-skel--title"></span><span class="ui-skel ui-skel--text" style="width: 70%"></span></div>
+      </div>
+
+      <div class="ui-profile-head" id="head" hidden>
+        <span class="ui-avatar" id="avatar" aria-hidden="true"></span>
+        <div style="display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0">
+          <h1 class="ui-profile-head__name" id="name"></h1>
+          <span class="ui-small ui-muted" id="meta"></span>
+        </div>
+        <a class="ui-btn ui-btn--secondary" href="profile-edit.html">Edit</a>
+      </div>
+
+      <section class="ui-hero ui-plan-card" aria-labelledby="planName" id="planCard" hidden>
+        <span class="ui-hero__ball" aria-hidden="true"></span>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <span class="ui-eyebrow">Membership</span>
+          <h2 class="ui-plan-card__name" id="planName"></h2>
+          <span class="ui-small" style="color: var(--on-navy-muted)" id="planLine"></span>
+        </div>
+        <div class="ui-plan-card__stats">
+          <div><b id="statSessions"></b><span>Sessions this month</span></div>
+          <div><b id="statCredits"></b><span>Table credits</span></div>
+          <div><b id="statWindow"></b><span>Booking window</span></div>
+        </div>
+        <div class="ui-hero__actions" id="planActions"></div>
+      </section>
+      <span class="ui-skel" style="height: 220px; border-radius: var(--radius-hero)" id="planSkeleton" aria-hidden="true"></span>
+
+      <nav class="ui-settings" aria-label="Settings">
+        <a class="ui-settings__row" aria-disabled="true"><span class="ui-settings__label">Lesson packages</span><span class="ui-settings__hint">Soon</span><span data-ui-icon="forward"></span></a>
+        <a class="ui-settings__row" aria-disabled="true"><span class="ui-settings__label">Payment methods</span><span class="ui-settings__hint">Soon</span><span data-ui-icon="forward"></span></a>
+        <a class="ui-settings__row" aria-disabled="true"><span class="ui-settings__label">Family &amp; guests</span><span class="ui-settings__hint">Soon</span><span data-ui-icon="forward"></span></a>
+        <a class="ui-settings__row" aria-disabled="true"><span class="ui-settings__label">Notifications</span><span class="ui-settings__hint">Soon</span><span data-ui-icon="forward"></span></a>
+        <button type="button" class="ui-settings__row" id="rulesBtn" aria-haspopup="dialog"><span class="ui-settings__label">Club rules &amp; policies</span><span data-ui-icon="forward"></span></button>
+        <a class="ui-settings__row" aria-disabled="true"><span class="ui-settings__label">Help &amp; contact</span><span class="ui-settings__hint">Soon</span><span data-ui-icon="forward"></span></a>
+      </nav>
+
+      <div class="ui-empty ui-error" role="alert" id="loadError" hidden>
+        <span class="ui-empty__icon"><span data-ui-icon="alert"></span></span>
+        <span class="ui-empty__title">Couldn't load your profile</span>
+        <span class="ui-empty__text" id="loadErrorText"></span>
+        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" id="retry">Try again</button>
+      </div>
+
+      <button type="button" class="ui-logout" id="logout">Log out</button>
+    </main>
+
+    <nav class="ui-tabbar" aria-label="Main">
+      <a class="ui-tab" aria-disabled="true"><span data-ui-icon="home"></span>Home</a>
+      <a class="ui-tab" href="index.html"><span data-ui-icon="table"></span>Tables</a>
+      <a class="ui-tab" aria-disabled="true"><span data-ui-icon="coach"></span>Lessons</a>
+      <a class="ui-tab" aria-disabled="true"><span data-ui-icon="calendar"></span>Bookings</a>
+      <a class="ui-tab" href="profile.html" aria-current="page"><span data-ui-icon="profile"></span>Profile</a>
+    </nav>
+  </div>
+
+  <div class="ui-sheet" id="rules" role="dialog" aria-modal="true" aria-labelledby="rulesTitle" hidden>
+    <div class="ui-sheet__panel">
+      <h2 class="ui-h2" id="rulesTitle">Club rules &amp; policies</h2>
+      <ul class="ui-sheet__list" id="rulesList"></ul>
+      <button type="button" class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block" id="rulesClose">Got it</button>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script src="ui.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    let user = null;
+    let config = null;
+
+    function render() {
+      $('#avatar').textContent = initials(user.name);
+      $('#name').textContent = user.name;
+      const since = new Date(user.memberSince).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+      $('#meta').textContent = `${LEVELS[user.skillLevel]} · member since ${since}`;
+
+      const plan = user.plan;
+      $('#planName').textContent = plan.name;
+      $('#planLine').textContent = plan.status === 'pending_payment'
+        ? `Payment pending · ${money(plan.price, config.currency)}/mo`
+        : plan.price ? `${money(plan.price, config.currency)}/mo` : `Free · book up to ${plan.bookingWindowDays} days ahead`;
+      $('#statSessions').textContent = user.stats.sessionsThisMonth;
+      $('#statCredits').textContent = user.stats.tableCredits;
+      $('#statWindow').textContent = `${plan.bookingWindowDays}d`;
+      const upgrade = { dropin: 'Upgrade to Club', club: 'Upgrade to Pro' }[plan.id];
+      $('#planActions').innerHTML = (upgrade ? UI.button({ label: upgrade, variant: 'inverse', href: 'signup.html?change=1' }) : '')
+        + UI.button({ label: 'Manage', variant: 'outline-on-navy', href: 'signup.html?change=1' });
+      if (!upgrade) $('#planActions').style.gridTemplateColumns = '1fr';
+
+      ['headSkeleton', 'planSkeleton'].forEach(id => { $(`#${id}`).hidden = true; });
+      ['head', 'planCard'].forEach(id => { $(`#${id}`).hidden = false; });
+      $('#screen').removeAttribute('aria-busy');
+    }
+
+    async function load() {
+      $('#loadError').hidden = true;
+      try {
+        user = await Auth.requireUser();
+        config = await api('/api/config');
+        render();
+      } catch (err) {
+        $('#loadErrorText').textContent = err.message;
+        $('#loadError').hidden = false;
+        $('#planSkeleton').hidden = true;
+      }
+    }
+    $('#retry').addEventListener('click', load);
+
+    // Club rules from the live settings
+    $('#rulesBtn').addEventListener('click', () => {
+      const hours = config.cancelCutoffMinutes % 60 === 0 ? `${config.cancelCutoffMinutes / 60} hours` : `${config.cancelCutoffMinutes} minutes`;
+      $('#rulesList').innerHTML = [
+        `Free cancellation up to ${hours} before your start time. After that the booking can't be cancelled online.`,
+        `Your plan lets you book up to ${user.plan.bookingWindowDays} days ahead.`,
+        `Up to ${config.maxPlayersPerTable} players per table.`,
+        'Please arrive a few minutes early and check in at the front desk.',
+        'Clean, non-marking indoor shoes only.',
+      ].map(rule => `<li>${UI.esc(rule)}</li>`).join('');
+      $('#rules').hidden = false;
+      $('#rulesClose').focus();
+    });
+    const closeRules = () => { $('#rules').hidden = true; $('#rulesBtn').focus(); };
+    $('#rulesClose').addEventListener('click', closeRules);
+    $('#rules').addEventListener('click', e => { if (e.target.id === 'rules') closeRules(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#rules').hidden) closeRules(); });
+
+    $('#logout').addEventListener('click', async () => {
+      await Auth.logout().catch(() => {});
+      location.replace('welcome.html');
+    });
+
+    const flash = sessionStorage.getItem('rc.flash');
+    if (flash) { sessionStorage.removeItem('rc.flash'); UI.toast(flash, { kind: 'success' }); }
+    load();
+  </script>
+</body>
+</html>
