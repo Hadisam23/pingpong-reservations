@@ -335,3 +335,14 @@ test('Stripe: checkout redirects to Stripe, the signed webhook confirms the book
   assert.equal(created.reservations.byCode(h.body.code).status, 'confirmed');
   assert.equal(created.db.prepare('SELECT paymentIntent FROM payments').get().paymentIntent, 'pi_1');
 });
+
+test('find a booking with its code and the phone or email used (guests on another device)', async () => {
+  const h = await call('POST', '/api/holds', { date: '2026-10-25', start: '18:00', duration: 60 });
+  await call('POST', `/api/holds/${h.body.code}/checkout`, { token: h.body.token, ...guest });
+  const byPhone = await call('POST', '/api/reservations/find', { code: `rc-${h.body.code.toLowerCase()}`, contact: '054 777 8888' });
+  assert.deepEqual(byPhone.body, { code: h.body.code, token: h.body.token, upcoming: true });
+  assert.equal((await call('POST', '/api/reservations/find', { code: h.body.code, contact: 'GUEST@example.com' })).status, 200);
+  const wrong = await call('POST', '/api/reservations/find', { code: h.body.code, contact: '0500000000' });
+  assert.equal(wrong.status, 404);
+  assert.equal((await call('POST', '/api/reservations/find', { code: 'ZZZZZZ', contact: '0547778888' })).body.error.message, wrong.body.error.message);
+});

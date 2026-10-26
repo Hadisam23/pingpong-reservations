@@ -1,58 +1,67 @@
-# Ping Pong Center — Reservations
+# Rally Club — table tennis club app
 
-Online table booking for a ping pong center: customers book from their phone without creating an
-account, and staff run the day from a front-desk panel. Ships as a website **and** a Capacitor iOS
-app (`mobile/`).
+Book a table, book a coach, play more. Players book tables, lessons and group classes from their
+phone (iOS app or website), pay or use credits, and check in with a QR code. Staff run the club
+from a desktop admin panel. Built from `docs/BUILD_SPEC.md` and the screens in
+`docs/design/screens/` (the visual source of truth).
 
-See [SPEC.md](SPEC.md) for the full product spec (the build prompt this project was made from).
+**Stack:** Node 22, Express 4, SQLite (better-sqlite3), plain HTML/CSS/JS (no build step),
+Capacitor 8 for iOS. Tests: `node:test`, Playwright, axe-core.
 
-## Features
-
-- **Customers** (`/`): pick a day, a duration, and a free time × table in the grid, see the price,
-  then book with name + phone. They get a booking code and a private manage link.
-- **Manage booking** (`/manage`): view or cancel using the private link, or with the booking code +
-  phone number.
-- **Front desk** (`/admin`): day timeline across all tables, check-in / no-show / cancel / restore,
-  walk-in bookings, blocking time (one table or all), and settings (hours, prices, peak times,
-  rules, tables).
-- **Rules enforced on the server:**
-  - no overlapping bookings, checked atomically in a transaction
-  - bookings must be inside opening hours and on the slot grid
-  - booking window (default 14 days ahead)
-  - per-phone limit on upcoming bookings
-  - online-cancellation cutoff
-  - blocked time can't be booked
-- **Session types:**
-  - Casual play
-  - Training with robot (+₪30/h)
-  - Private coaching (+₪120/h)
-  - League match
-  - Birthday / event (+₪50/h, at least 2 h)
-
-  You can edit them under Admin → Settings.
-- **Pricing:** off-peak and peak rates per hour, priced slot by slot (peak from a time of day plus
-  whole peak days).
-
-## Run it
+## Run it locally
 
 ```bash
 npm install
-ADMIN_PASSWORD=choose-something npm start   # http://localhost:3000
-npm test                                     # API test suite
-npm run seed                                 # demo world: 4 tables, coaches, classes, demo accounts, bookings
+npm run seed      # demo world: 4 tables, 3 coaches, a week of classes, demo accounts, bookings
+npm start         # http://localhost:3000
 ```
 
-`npm run seed` **replaces all bookings**, classes, coaches, price rules and promo codes in `DB_PATH`,
-and recreates the `@rallyclub.test` demo accounts. Other accounts are kept. Pass `-- --seed 42` to get
-the same data every time.
+| Open | What |
+|---|---|
+| http://localhost:3000 | The player app (Welcome → Home) |
+| http://localhost:3000/admin | Front desk / admin panel |
+| http://localhost:3000/styleguide | Every component and state |
+
+**Demo logins** (password `rally-demo-2026` for all):
+
+| Email | Who |
+|---|---|
+| `player@rallyclub.test` | Noa Cohen, Club member: bookings, 3 table credits, lesson pack 4 of 10, on a waitlist |
+| `coach@rallyclub.test` | Dana Peretz, head coach |
+| `admin@rallyclub.test` | Staff account for `/admin` |
+
+**Payments: test card `4242 4242 4242 4242`.** Without Stripe keys the app runs in demo mode: card
+payments go through at once with the test card and no real money moves. With
+`STRIPE_SECRET_KEY` (test mode) and `STRIPE_WEBHOOK_SECRET`, payments and memberships use Stripe
+Checkout; in Stripe's checkout use `4242 4242 4242 4242`, any future date, any CVC. For local
+webhooks: `stripe listen --forward-to localhost:3000/api/stripe/webhook`.
+
+`npm run seed` replaces bookings, classes, coaches, price rules and promo codes in `DB_PATH` and
+recreates the `@rallyclub.test` accounts; other accounts are kept. `-- --seed 42` gives the same
+data every time.
 
 | Env var | Default | Purpose |
 |---|---|---|
 | `PORT` | `3000` | HTTP port |
-| `ADMIN_PASSWORD` | – | Required to enable the admin panel and API |
-| `DB_PATH` | `./data/pingpong.db` | SQLite file. Point it at a persistent volume in production |
-| `BASE_URL` | request host | Public URL used in manage links (e.g. `https://book.mycenter.com`) |
-| `CORS_ORIGINS` | – | Extra allowed origins, comma separated. The app's own origins (`capacitor://localhost`, `http(s)://localhost`) are always allowed |
+| `DB_PATH` | `./data/pingpong.db` | SQLite file. Use a persistent volume in production |
+| `BASE_URL` | request address | Public URL for links in emails and Stripe return pages |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | – | Stripe test/live mode (otherwise demo payments) |
+| `RESEND_API_KEY` or `SMTP_URL`, `EMAIL_FROM` | – | Real email (otherwise printed to the console) |
+| `CHECKIN_SECRET` | generated, kept in the DB | Signs the QR check-in codes |
+| `ADMIN_PASSWORD` | – | Optional Bearer token for scripts; staff normally log in with an ADMIN account |
+| `CORS_ORIGINS` | – | Extra allowed origins. The app's own origins are always allowed |
+
+On a real install with no demo data: sign up in the app, then `npm run make-admin -- you@club.com`.
+
+## Tests
+
+```bash
+npm test                      # 70+ API tests: booking rules, holds, payments, lessons, memberships, admin, emails
+cd mobile && npm run test:e2e # the app on an emulated iPhone + axe accessibility scan of every screen
+cd mobile && npm run test:ios # macOS + Xcode: builds the app, runs it in the iOS Simulator, books a table inside it
+```
+
+`test:ios` takes `DEVICE="iPhone 17"` to pick a simulator. Screenshots go to `mobile/shots/`.
 
 ## Mobile app (Capacitor, iOS)
 
@@ -63,23 +72,22 @@ cd mobile
 npm install
 API_URL=http://localhost:3000 npm run sync   # build www/ and copy it into ios/
 npm run open                                  # open in Xcode, or:
-npm run ios                                   # build + run on a simulator/device
+npx cap run ios                               # build + run on a simulator/device
 ```
 
 On a physical iPhone, set `API_URL` to your Mac's LAN IP (e.g. `http://192.168.1.20:3000`). For
 release builds, use your deployed HTTPS server.
 
-### Tests
+## Placeholder content to replace
 
-| Command | Where | What it does |
-|---|---|---|
-| `npm run test:e2e` | any OS | Runs the app bundle on an emulated iPhone (Playwright) against a seeded backend: booking with types and prices, the party minimum length, my-bookings, manage/cancel, the "slot just taken" race, the front desk, and the in-app self-test. Set `E2E_BROWSER=webkit` to use the Safari engine. |
-| `npm run test:ios` | macOS + Xcode | Starts a seeded backend, builds the app with a built-in self-test, boots an iOS Simulator, installs and launches the app, then checks that the booking made **inside the app** reached the server. Screenshots go to `mobile/shots/`. Set `DEVICE="iPhone 16"` to pick a simulator. |
-
-The e2e test needs the root dependencies too (`npm install` in the repo root).
-
-Four tables (Tables 1–3 in the Main hall, Table 4 in the Private room) and default opening hours/prices
-are created on first start. Change them in **Admin → Settings**.
+- **Prices:** table price rules, plan prices (Club ₪149, Pro ₪299), lesson prices (₪180/240/150),
+  class prices, lesson-pack savings, promo `WELCOME10`. All editable in Admin → Pricing & plans.
+- **Coaches:** Dana Peretz, Yossi Ben-David, Lina Haddad (names, bios, certifications, hours).
+- **Classes:** the weekly schedule in the seed (Admin → Classes).
+- **Club details:** name "Rally Club", 4 tables in 2 areas, opening hours, policies text in
+  Profile → Club rules, the sender address `bookings@rallyclub.test` (`EMAIL_FROM`).
+- **Brand:** the Rally Club mark and app icon (the iOS icon is still Capacitor's default).
+- Seeded players, bookings and payments are random demo data.
 
 ## Accounts (Phase 2)
 
@@ -89,7 +97,7 @@ Players can create an account (email + password), pick a membership, and manage 
 | Page | What it does |
 |---|---|
 | `/welcome` | Create account, log in, or book as a guest |
-| `/signup` | Step 1: name, email, phone, password, level, terms. Step 2: choose a membership (`?change=1` from the profile) |
+| `/signup` | Step 1: name, email, phone, password, level, terms. Step 2: choose a membership. Step 3: pay (paid plans) |
 | `/login`, `/forgot-password`, `/reset-password` | Log in; reset by an emailed, single-use link that expires in 1 hour |
 | `/profile`, `/profile/edit` | Name, level, membership card, club rules, log out |
 
@@ -135,9 +143,11 @@ The taste-skill (`.claude/skills/taste-skill`) is available for reviews; its out
 
 ## API
 
-Errors always look like `{ "error": { "code": "slot_taken", "message": "…" } }`.
+Errors always look like `{ "error": { "code": "slot_taken", "message": "…", "field": "…" } }`.
+The endpoints for each part are listed in its section above. Below: the original booking API,
+still used by the front desk (walk-ins, blocks) and older guest links.
 
-### Public
+### Public (original)
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -147,7 +157,7 @@ Errors always look like `{ "error": { "code": "slot_taken", "message": "…" } }
 | GET | `/api/bookings/:code?token=…` or `?phone=…` | View a booking |
 | POST | `/api/bookings/:code/cancel` | `{ token }` or `{ phone }` |
 
-### Admin (`Authorization: Bearer <ADMIN_PASSWORD>`)
+### Admin (staff session, or `Authorization: Bearer <ADMIN_PASSWORD>`)
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -298,22 +308,31 @@ API: `GET /api/me/membership`, `PUT /api/me/plan` (→ `{ user, membership, redi
 ## Project layout
 
 ```
-server.js            entry point (env config, graceful shutdown)
-src/app.js           Express app: routes, admin auth, error handling
-src/service.js       booking rules: availability, pricing, create/cancel, admin actions
-src/settings.js      default settings + validation
-src/time.js          date/time helpers (center time zone)
-src/db.js            opens SQLite and runs migrations
-src/migrations.js    versioned schema steps
-src/plans.js         membership plans
-src/seed.js          demo world (accounts, coaches, classes, random bookings)
-scripts/seed.js      `npm run seed`
-public/              booking page, manage page, admin panel (plain HTML/CSS/JS)
-test/                API, auth, migration, seed and design-token tests (node:test)
-mobile/              Capacitor app: ios/ project, build script, e2e + simulator tests
+server.js              entry point: env config, background jobs (every minute), shutdown
+src/app.js             Express app and every route
+src/db.js, migrations.js   SQLite + versioned schema (PRAGMA user_version)
+src/service.js         settings, opening hours, closures, the original booking API
+src/occupancy.js       what makes a table busy (bookings, holds, classes, blocks): one source for all
+src/pricing.js         price rules, member discounts, promo codes
+src/reservations.js    holds, checkout, cancel/refund, reschedule, split cost, check-in, reminders
+src/lessons.js         coaches, lesson slots, classes, waitlist offers, lesson packs
+src/memberships.js     plans, subscriptions, renewals, Stripe subscription webhooks
+src/payments.js        demo + Stripe (REST, webhooks), refunds
+src/checkin.js         signed QR check-in codes
+src/notify.js, emails.js, mailer.js   bell + email (Resend / SMTP / console)
+src/admin.js           admin panel: calendar, bookings, coaches, classes, pricing, members, settings, reports
+src/seed.js            demo world
+public/                every screen (plain HTML/CSS/JS): tokens.css, components.css, ui.js, app.js, admin.js
+test/                  API tests (node:test)
+mobile/                Capacitor iOS app, build script, e2e, accessibility and simulator tests
+docs/                  build spec and design screens
 ```
 
-## Next steps
+## Not done yet / next steps
 
-Payments/deposits, SMS or WhatsApp confirmations and reminders, recurring bookings (league nights),
-coach calendars, equipment rental add-ons, rate limiting, and multiple branches.
+- Google and Apple sign-in (need OAuth keys), push notifications in the iOS app (needs an Apple
+  push certificate), a real app icon and splash screen.
+- Stripe is wired but only tested against a mocked Stripe API: run it once in test mode with your
+  keys before going live.
+- Background jobs run inside the web process: fine for one server; use a single job runner if you
+  scale out.

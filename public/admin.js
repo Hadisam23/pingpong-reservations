@@ -14,7 +14,8 @@
   const PLAN = { dropin: 'Drop-in', club: 'Club', pro: 'Pro' };
   const dayLabel = date => `${DOW[new Date(`${date}T12:00:00Z`).getUTCDay()]} ${prettyDate(date, { day: 'numeric', month: 'short' })}`;
   const badge = status => { const [label, tone] = STATUS[status] || [status, 'neutral']; return `<span class="ui-badge ui-badge--${tone}">${h(label)}</span>`; };
-  const field = (label, input, help = '') => `<div class="ui-field"><label class="ui-field__label">${h(label)}</label>${input}${help ? `<span class="ui-field__help">${h(help)}</span>` : ''}</div>`;
+  // The label wraps its control, so it is named without ids
+  const field = (label, input, help = '') => `<label class="ui-field"><span class="ui-field__label">${h(label)}</span>${input}${help ? `<span class="ui-field__help">${h(help)}</span>` : ''}</label>`;
   const input = (name, value = '', attrs = '') => `<input class="ui-input" name="${name}" value="${h(value ?? '')}" ${attrs}>`;
   const formData = form => Object.fromEntries(new FormData(form).entries());
 
@@ -541,7 +542,7 @@
           <div class="ad-row">${field('Table credits / month', input('monthlyTableCredits', pl.monthlyTableCredits, 'type="number" min="0"'))}${field('Lessons included / month', input('includedLessonsPerMonth', pl.includedLessonsPerMonth, 'type="number" min="0"'))}</div>
           <label class="ui-check"><input type="checkbox" name="offPeakTablesFree" ${pl.offPeakTablesFree ? 'checked' : ''}> <span>Off-peak tables included</span></label>
           ${field('Summary', input('summary', pl.summary))}
-          <div class="ui-field"><label class="ui-field__label">Perks (one per line)</label><textarea class="ui-input" name="perks" rows="3" style="height: auto; padding-top: var(--space-2)">${h(pl.perks.join('\n'))}</textarea></div>
+          <label class="ui-field"><span class="ui-field__label">Perks (one per line)</span><textarea class="ui-input" name="perks" rows="3" style="height: auto; padding-top: var(--space-2)">${h(pl.perks.join('\n'))}</textarea></label>
           <button type="submit" class="ui-btn ui-btn--primary ui-btn--sm">Save ${h(pl.name)}</button></form>`).join('')}
       </div></section>
 

@@ -189,6 +189,15 @@ function createApp({
     res.json(await lessons.buyPack(req.body, { user: req.user, baseUrl: publicUrl(req) }));
   }));
 
+  // Find a booking by code + phone/email (rate limited per address: it's a guessable pair)
+  const findTries = new Map();
+  api.post('/reservations/find', (req, res) => {
+    const t = Date.now();
+    const recent = (findTries.get(req.ip) || []).filter(at => t - at < 15 * 60000);
+    if (recent.length >= 20) throw new ApiError(429, 'too_many_attempts', 'Too many attempts. Wait 15 minutes and try again.');
+    findTries.set(req.ip, [...recent, t]);
+    res.json(reservations.find(req.body));
+  });
   api.get('/my/bookings', requireUser, (req, res) => res.json(reservations.mine(req.user)));
   api.get('/reservations/:code', optionalUser, wrap(async (req, res) => {
     const booking = reservations.get(req.params.code, who(req));

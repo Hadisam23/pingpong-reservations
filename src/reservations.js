@@ -3,7 +3,7 @@
 // cancel (refund until the free-cancellation cutoff) and reschedule.
 // Guests can book too: they prove ownership with the booking's manage token.
 const crypto = require('crypto');
-const { ApiError, safeEqual } = require('./service');
+const { ApiError, safeEqual, normalizePhone } = require('./service');
 const { findPlan } = require('./plans');
 const { formatHHMM, parseHHMM, isValidDate, weekday, addDays, nowIn, minutesUntil, zonedToUtc } = require('./time');
 const { round2 } = require('./pricing');
@@ -663,6 +663,21 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
     return v;
   }
 
+  // ---------- find a booking (guests on another device) ----------
+
+  // Code + the phone or email used to book → the booking's manage token. Same answer whether
+  // the code or the contact is wrong, so it can't be used to probe either.
+  function find({ code, contact } = {}) {
+    const row = stmts.byCode.get(String(code ?? '').trim().toUpperCase().replace(/^#?RC-/, ''));
+    const raw = String(contact ?? '').trim();
+    const phone = normalizePhone(raw);
+    const ok = row && raw && (
+      (phone && row.phone && safeEqual(phone, row.phone))
+      || (row.email && safeEqual(raw.toLowerCase(), row.email.toLowerCase())));
+    if (!ok || ['held', 'expired'].includes(row.status)) throw new ApiError(404, 'booking_not_found', 'No booking matches that code and phone or email.');
+    return { code: row.code, token: row.manageToken, upcoming: view(row).upcoming };
+  }
+
   // ---------- check-in (front desk) ----------
 
   // token: the QR content; code: typed at the desk. QR codes work from 15 min before the start
@@ -779,7 +794,7 @@ function createReservations(db, { service, pricing, payments, checkIn, notifier,
     availability, freeToday, areas: areasList, hold, release, holdView, quote, checkout, finalize,
     get, mine, cancel, reschedule, shareView, payShare, runJobs, expireHolds, view, planOf,
     byCode: code => stmts.byCode.get(code),
-    insertHoldRow, hooks, packLeft, LEVEL_LABEL, checkInBooking, adminView, byId: id => stmts.byId.get(id), SELECT,
+    find, insertHoldRow, hooks, packLeft, LEVEL_LABEL, checkInBooking, adminView, byId: id => stmts.byId.get(id), SELECT,
   };
 }
 

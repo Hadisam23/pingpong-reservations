@@ -3,151 +3,67 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>My Booking</title>
+  <title>Find my booking · Rally Club</title>
   <link rel="preload" href="fonts/plus-jakarta-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="tokens.css">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="components.css">
 </head>
-<body>
-  <header class="app-header">
-    <div class="app-header__inner">
-      <a class="brand" href="index.html"><span data-icon="brand"></span><span class="brand__name" id="centerName">Ping Pong Center</span></a>
-      <div class="app-header__end">
-        <a class="btn btn--primary btn--sm" href="index.html">Book a table</a>
+<body class="ui-app">
+  <div class="ui-shell">
+    <main class="ui-screen ui-screen--app" aria-labelledby="title">
+      <div class="ui-screen__head">
+        <a class="ui-icon-btn" href="bookings.html" aria-label="Back"><span data-ui-icon="back"></span></a>
+        <h1 class="ui-h2" id="title">Find my booking</h1>
       </div>
-    </div>
-  </header>
+      <p class="ui-body ui-muted">Booked as a guest on another phone or computer? Enter the booking code from your email and the phone number or email you booked with.</p>
 
-  <main class="page page--narrow">
-    <section class="hidden" id="lookup" aria-labelledby="lookupTitle">
-      <div class="page-head">
-        <div class="page-head__text">
-          <h1 id="lookupTitle">Find your booking</h1>
-          <p class="lede">Enter the code from your confirmation and the phone number you booked with.</p>
+      <form class="ui-card ui-form" id="form" novalidate>
+        <div class="ui-form__alert" role="alert" tabindex="-1" hidden></div>
+        <div class="ui-field">
+          <label class="ui-field__label" for="code">Booking code</label>
+          <input class="ui-input" id="code" name="code" placeholder="RC-7KQ2PX" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12">
         </div>
-      </div>
-      <div class="card">
-        <div id="lookupError" class="alert err hidden" role="alert"></div>
-        <form id="lookupForm" novalidate>
-          <div class="field">
-            <label for="code">Booking code</label>
-            <input id="code" class="code-input" autocomplete="off" autocapitalize="characters" maxlength="6" placeholder="K7QX2M">
-          </div>
-          <div class="field">
-            <label for="phone">Phone number</label>
-            <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="050-123-4567">
-          </div>
-          <button class="btn btn--primary btn--lg btn--block" type="submit" id="lookupBtn">Find booking</button>
-        </form>
-      </div>
-    </section>
-
-    <section class="hidden" id="view" aria-labelledby="viewTitle">
-      <h1 class="sr-only" id="viewTitle">Your booking</h1>
-      <div id="viewMsg" class="alert hidden" role="status"></div>
-      <div class="ticket">
-        <div class="ticket__top">
-          <div class="ticket__row"><span>Booking code</span><span class="badge" id="vStatus"></span></div>
-          <div class="ticket__code" id="vCode"></div>
-          <div class="ticket__time" id="vTime"></div>
+        <div class="ui-field">
+          <label class="ui-field__label" for="contact">Phone or email</label>
+          <input class="ui-input" id="contact" name="contact" autocomplete="email" inputmode="email">
         </div>
-        <div class="ticket__body">
-          <dl class="summary" id="vSummary"></dl>
-          <div id="cancelArea"></div>
-        </div>
-      </div>
-    </section>
-  </main>
+        <button type="submit" class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block" id="submit">Find booking</button>
+      </form>
+      <p class="ui-small ui-muted">Have an account? <a class="ui-link" href="login.html?next=bookings.html">Log in</a> to see all your bookings.</p>
+    </main>
+    <nav id="tabbar"></nav>
+  </div>
 
   <script src="config.js"></script>
   <script src="common.js"></script>
+  <script src="ui.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
   <script>
-    const params = new URLSearchParams(location.search);
-    let creds = null;
-    let booking = null;
+    const open = (code, token) => {
+      App.rememberGuestBooking(code, token);
+      location.replace(`confirmed.html?${new URLSearchParams({ code, token, view: 'pass' })}`);
+    };
+    // Links from booking emails carry the code and token already
+    if (App.param('code') && App.param('t')) open(App.param('code'), App.param('t'));
 
-    function render() {
-      const b = booking;
-      $('#lookup').classList.add('hidden');
-      $('#view').classList.remove('hidden');
-      $('#vCode').textContent = b.code;
-      const badge = $('#vStatus');
-      badge.className = `badge ${b.status}`;
-      badge.textContent = statusLabel(b.status);
-      $('#vTime').innerHTML = `<span class="ball"></span>${esc(b.start)}–${esc(b.end)}`;
-      $('#vSummary').innerHTML = `
-        <dt>Day</dt><dd>${esc(prettyDate(b.date))}</dd>
-        <dt>Table</dt><dd>${esc(b.table.name)}</dd>
-        <dt>Session</dt><dd>${esc(b.typeLabel)}</dd>
-        <dt>Name</dt><dd>${esc(b.name)}</dd>
-        <dt>Players</dt><dd>${b.players}</dd>
-        <dt>Price, at the desk</dt><dd class="price">${esc(money(b.price, b.currency))}</dd>`;
-
-      const area = $('#cancelArea');
-      if (b.canCancel) {
-        area.innerHTML = `<button class="btn btn--danger btn--lg btn--block" id="cancelBtn" type="button">Cancel booking</button>
-          <p class="muted xsmall mt-2">Online cancellation closes ${b.cancelCutoffMinutes} minutes before the start.</p>`;
-        $('#cancelBtn').onclick = cancel;
-      } else if (b.status === 'confirmed') {
-        area.innerHTML = `<p class="empty">It's too close to the start time to cancel online. Please call the center.</p>`;
-      } else {
-        area.innerHTML = '';
-      }
-    }
-
-    function message(text, kind) {
-      const el = $('#viewMsg');
-      el.className = `alert ${kind}`;
-      el.textContent = text;
-      el.classList.toggle('hidden', !text);
-    }
-
-    async function cancel() {
-      if (!confirm('Cancel this booking? The table will be released to other players.')) return;
-      const btn = $('#cancelBtn');
-      setLoading(btn, true);
-      try {
-        booking = await api(`/api/bookings/${encodeURIComponent(booking.code)}/cancel`, { method: 'POST', body: creds });
-        render();
-        message('Your booking was cancelled.', 'ok');
-      } catch (err) {
-        setLoading(btn, false);
-        message(err.message, 'err');
-      }
-    }
-
-    async function load(code, c) {
-      const q = c.token ? `token=${encodeURIComponent(c.token)}` : `phone=${encodeURIComponent(c.phone)}`;
-      booking = await api(`/api/bookings/${encodeURIComponent(code)}?${q}`);
-      creds = c;
-      render();
-    }
-
-    $('#lookupForm').addEventListener('submit', async e => {
+    $('#form').addEventListener('submit', async e => {
       e.preventDefault();
-      const err = $('#lookupError');
-      err.classList.add('hidden');
-      setLoading($('#lookupBtn'), true);
+      const form = e.target;
+      UI.clearErrors(form);
+      const missing = [['code', 'Enter the booking code'], ['contact', 'Enter your phone number or email']].filter(([id]) => !$(`#${id}`).value.trim());
+      if (missing.length) { missing.forEach(([id, msg]) => UI.fieldError($(`#${id}`), msg)); $(`#${missing[0][0]}`).focus(); return; }
+      UI.setLoading($('#submit'), true);
       try {
-        await load($('#code').value.trim().toUpperCase(), { phone: $('#phone').value });
-      } catch (ex) {
-        err.textContent = ex.message;
-        err.classList.remove('hidden');
-      } finally {
-        setLoading($('#lookupBtn'), false);
+        const found = await api('/api/reservations/find', { method: 'POST', body: { code: $('#code').value, contact: $('#contact').value } });
+        open(found.code, found.token);
+      } catch (err) {
+        UI.showError(form, err);
+        UI.setLoading($('#submit'), false);
       }
     });
-
-    (async () => {
-      api('/api/config').then(c => { $('#centerName').textContent = c.centerName; }).catch(() => {});
-      const code = params.get('code');
-      const token = params.get('t');
-      if (code && token) {
-        try { await load(code, { token }); return; } catch { /* fall through to manual lookup */ }
-      }
-      if (code) $('#code').value = code;
-      $('#lookup').classList.remove('hidden');
-    })();
+    if (App.param('code')) $('#code').value = App.param('code');
+    Auth.me().catch(() => null).then(user => App.tabbar('bookings', { guest: !user }));
   </script>
 </body>
 </html>

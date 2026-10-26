@@ -1,6 +1,6 @@
 {
   "appId": "com.pingpongcenter.booking",
-  "appName": "Ping Pong Center",
+  "appName": "Rally Club",
   "webDir": "www",
   "ios": {
     "contentInset": "never"
