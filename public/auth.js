@@ -43,6 +43,7 @@ const Auth = (() => {
     forgot: email => call('/api/auth/forgot', { method: 'POST', body: { email } }),
     reset: body => call('/api/auth/reset', { method: 'POST', body }).then(keep),
     update: body => call('/api/me', { method: 'PATCH', body }),
+    // → { user, membership, redirect } (redirect: Stripe Checkout for a new paid plan)
     choosePlan: plan => call('/api/me/plan', { method: 'PUT', body: { plan } }),
     plans: () => call('/api/plans'),
     call,

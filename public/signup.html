@@ -76,6 +76,36 @@
     <button class="ui-btn ui-btn--ghost ui-btn--md ui-btn--block" type="button" id="planSkip" style="--b-fs: var(--fs-body); --b-weight: var(--weight-semibold); margin-top: var(--space-2)">Skip for now</button>
   </main>
 
+  <!-- Step 3 of 3: pay for a paid plan -->
+  <main class="ui-screen" id="stepPay" aria-labelledby="payTitle" hidden>
+    <div class="ui-screen__top">
+      <button type="button" class="ui-icon-btn" aria-label="Back to plans" id="payBack"><span data-ui-icon="back"></span></button>
+      <span class="ui-steps-label">Step 3 of 3</span>
+    </div>
+    <div class="ui-steps ui-steps--strong" style="margin-top: var(--space-4)" aria-hidden="true"><span class="is-done"></span><span class="is-done"></span><span class="is-done"></span></div>
+
+    <h1 class="ui-h1 ui-screen__title" id="payTitle">Start your membership</h1>
+    <p class="ui-screen__lede">Billed monthly. Cancel anytime from your profile.</p>
+
+    <section class="ui-hero ui-plan-card" aria-labelledby="payPlan">
+      <span class="ui-hero__ball" aria-hidden="true"></span>
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span class="ui-eyebrow">Membership</span>
+        <h2 class="ui-plan-card__name" id="payPlan"></h2>
+        <span class="ui-small" style="color: var(--on-navy-muted)" id="payLine"></span>
+      </div>
+      <ul class="ui-radio-card__perks" id="payPerks" style="color: var(--on-navy-soft)"></ul>
+    </section>
+
+    <div class="ui-card ui-card--list ui-mt-sm" role="radiogroup" aria-label="Payment method" id="payMethod"></div>
+    <p class="ui-note ui-mt-sm" id="payNote"><span data-ui-icon="lock"></span><span id="payNoteText"></span></p>
+
+    <div class="ui-screen__spacer"></div>
+
+    <button class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block" type="button" id="paySubmit"><span data-ui-icon="lock"></span><span id="payLabel">Pay</span></button>
+    <button class="ui-btn ui-btn--ghost ui-btn--md ui-btn--block" type="button" id="paySkip" style="--b-fs: var(--fs-body); --b-weight: var(--weight-semibold); margin-top: var(--space-2)">Skip for now</button>
+  </main>
+
   <script src="config.js"></script>
   <script src="common.js"></script>
   <script src="ui.js"></script>
@@ -150,16 +180,16 @@
     }
     document.getElementById('plans').addEventListener('change', syncPlanButton);
 
+    // Drop-in: done. Paid plan: step 3 (pay), then the membership starts.
     async function savePlan(planId) {
       const plan = plans.find(p => p.id === planId);
+      if (plan.price > 0) return showPayStep(plan);
       const btn = document.getElementById('planSubmit');
       UI.setLoading(btn, true);
       try {
-        const user = await Auth.choosePlan(planId);
-        sessionStorage.setItem('rc.flash', user.plan.status === 'pending_payment'
-          ? `${plan.name} plan saved. Online payment for memberships is coming soon.`
-          : `You're on ${plan.name}.`);
-        location.replace(new URLSearchParams(location.search).get('change') ? 'profile.html' : 'home.html');
+        await Auth.choosePlan(planId);
+        sessionStorage.setItem('rc.flash', "You're on Drop-in. Upgrade anytime from your profile.");
+        location.replace('home.html');
       } catch (err) {
         UI.toast(err.message, { kind: 'error' });
         UI.setLoading(btn, false);
@@ -167,6 +197,55 @@
     }
     document.getElementById('planForm').addEventListener('submit', e => { e.preventDefault(); if (chosenPlan()) savePlan(chosenPlan()); });
     document.getElementById('planSkip').addEventListener('click', () => savePlan('dropin'));
+
+    // ---------- step 3 ----------
+    let payingFor = null;
+    async function showPayStep(plan) {
+      payingFor = plan;
+      const config = await api('/api/config').catch(() => ({ payments: { provider: 'demo' } }));
+      const renews = new Date();
+      renews.setMonth(renews.getMonth() + 1);
+      document.getElementById('payPlan').textContent = plan.name;
+      document.getElementById('payLine').textContent = `${money(plan.price, plan.currency)}/mo · renews ${renews.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
+      const perks = plan.perks.length ? plan.perks : plan.summary.split(' · ');
+      document.getElementById('payPerks').innerHTML = perks.map(k => `<li>${UI.icon('check')}${UI.esc(k)}</li>`).join('');
+      const stripe = config.payments && config.payments.provider === 'stripe';
+      UI.options(document.getElementById('payMethod'), {
+        label: 'Payment method', value: 'card',
+        options: [stripe ? { value: 'card', title: 'Pay by card', sub: 'Secure checkout by Stripe' } : { value: 'card', title: 'Card ending 4242', sub: 'Saved card · test mode' }],
+      });
+      document.getElementById('payNoteText').textContent = stripe
+        ? "You'll enter your card on Stripe's secure page, then come back here."
+        : `Demo mode: no real money moves. Test card ${config.payments.testCard || '4242 4242 4242 4242'}.`;
+      document.getElementById('payLabel').textContent = `Pay ${money(plan.price, plan.currency)} & start ${plan.name}`;
+      document.getElementById('stepPlan').hidden = true;
+      document.getElementById('stepPay').hidden = false;
+      document.title = 'Start your membership · Rally Club';
+      document.getElementById('payTitle').focus();
+    }
+    document.getElementById('payTitle').setAttribute('tabindex', '-1');
+    document.getElementById('payBack').addEventListener('click', () => {
+      document.getElementById('stepPay').hidden = true;
+      document.getElementById('stepPlan').hidden = false;
+    });
+    document.getElementById('paySkip').addEventListener('click', () => savePlan('dropin'));
+    document.getElementById('paySubmit').addEventListener('click', async () => {
+      const btn = document.getElementById('paySubmit');
+      UI.setLoading(btn, true);
+      try {
+        const res = await Auth.choosePlan(payingFor.id);
+        if (res.redirect) {
+          if (isNativeApp) window.open(res.redirect, '_blank'); else location.href = res.redirect;
+          return;
+        }
+        haptic();
+        sessionStorage.setItem('rc.flash', `Welcome to ${payingFor.name}! Member prices start now.`);
+        location.replace('home.html');
+      } catch (err) {
+        UI.toast(err.message, { kind: 'error' });
+        UI.setLoading(btn, false);
+      }
+    });
 
     async function showPlanStep() {
       const user = await Auth.requireUser();
@@ -183,8 +262,10 @@
       renderPlans(changing ? user.plan.id : 'club');
     }
 
-    // Signed in already (back from step 2, or "Upgrade" on the profile): show the plan step
-    if (location.hash === '#plan' || changing) showPlanStep();
+    // Changing plan lives on the Manage membership screen now
+    if (changing) location.replace('membership.html');
+    // Signed in already (back from step 2): show the plan step
+    else if (location.hash === '#plan') showPlanStep();
     else Auth.me().then(user => { if (user) showPlanStep(); }).catch(() => {});
   </script>
 </body>

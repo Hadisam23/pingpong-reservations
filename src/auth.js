@@ -126,6 +126,7 @@ function createAuth(db, { mailer, now = () => new Date() } = {}) {
         id: plan.id, name: plan.name, price: plan.price, bookingWindowDays: plan.bookingWindowDays,
         status: membership.status === 'PENDING_PAYMENT' ? 'pending_payment' : membership.status.toLowerCase(),
         currentPeriodEnd: membership.currentPeriodEnd || null,
+        cancelAtPeriodEnd: !!membership.cancelAtPeriodEnd,
       },
       stats: {
         sessionsThisMonth: stmts.sessionsInMonth.get(row.id, `${month}-01`, `${month}-31`).c,

@@ -44,7 +44,7 @@
 
       <nav class="ui-settings" aria-label="Settings">
         <a class="ui-settings__row" href="packs.html"><span class="ui-settings__label">Lesson packages</span><span class="ui-settings__hint" id="packHint"></span><span data-ui-icon="forward"></span></a>
-        <a class="ui-settings__row" aria-disabled="true"><span class="ui-settings__label">Payment methods</span><span class="ui-settings__hint">Soon</span><span data-ui-icon="forward"></span></a>
+        <a class="ui-settings__row" href="membership.html"><span class="ui-settings__label">Payment methods</span><span class="ui-settings__hint" id="cardHint"></span><span data-ui-icon="forward"></span></a>
         <a class="ui-settings__row" aria-disabled="true"><span class="ui-settings__label">Family &amp; guests</span><span class="ui-settings__hint">Soon</span><span data-ui-icon="forward"></span></a>
         <a class="ui-settings__row" aria-disabled="true"><span class="ui-settings__label">Notifications</span><span class="ui-settings__hint">Soon</span><span data-ui-icon="forward"></span></a>
         <button type="button" class="ui-settings__row" id="rulesBtn" aria-haspopup="dialog"><span class="ui-settings__label">Club rules &amp; policies</span><span data-ui-icon="forward"></span></button>
@@ -89,15 +89,19 @@
 
       const plan = user.plan;
       $('#planName').textContent = plan.name;
-      $('#planLine').textContent = plan.status === 'pending_payment'
-        ? `Payment pending · ${money(plan.price, config.currency)}/mo`
-        : plan.price ? `${money(plan.price, config.currency)}/mo` : `Free · book up to ${plan.bookingWindowDays} days ahead`;
+      const until = plan.currentPeriodEnd && new Date(plan.currentPeriodEnd).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+      $('#planLine').textContent = !plan.price ? `Free · book up to ${plan.bookingWindowDays} days ahead`
+        : plan.status === 'pending_payment' ? 'Waiting for payment'
+        : plan.status === 'past_due' ? 'Payment failed · member prices paused'
+        : plan.cancelAtPeriodEnd ? `Ends ${until} · then Drop-in`
+        : `Renews ${until} · ${money(plan.price, config.currency)}/mo`;
       $('#statSessions').textContent = user.stats.sessionsThisMonth;
       $('#statCredits').textContent = user.stats.tableCredits;
       $('#statWindow').textContent = `${plan.bookingWindowDays}d`;
-      const upgrade = { dropin: 'Upgrade to Club', club: 'Upgrade to Pro' }[plan.id];
-      $('#planActions').innerHTML = (upgrade ? UI.button({ label: upgrade, variant: 'inverse', href: 'signup.html?change=1' }) : '')
-        + UI.button({ label: 'Manage', variant: 'outline-on-navy', href: 'signup.html?change=1' });
+      const next = { dropin: 'club', club: 'pro' }[plan.id];
+      const upgrade = next && `Upgrade to ${next === 'club' ? 'Club' : 'Pro'}`;
+      $('#planActions').innerHTML = (upgrade ? UI.button({ label: upgrade, variant: 'inverse', href: `membership.html?plan=${next}` }) : '')
+        + UI.button({ label: 'Manage', variant: 'outline-on-navy', href: 'membership.html' });
       if (!upgrade) $('#planActions').style.gridTemplateColumns = '1fr';
 
       ['headSkeleton', 'planSkeleton'].forEach(id => { $(`#${id}`).hidden = true; });
@@ -110,7 +114,12 @@
       try {
         user = await Auth.requireUser();
         App.tabbar('profile');
+        App.call('/api/my/bookings').then(b => {
+          const p = b.credits.pack;
+          $('#packHint').textContent = p.total ? `${p.left} of ${p.total} left` : '';
+        }).catch(() => {});
         config = await api('/api/config');
+        $('#cardHint').textContent = config.payments.provider === 'stripe' ? 'Cards & invoices' : 'Card ··4242';
         render();
       } catch (err) {
         $('#loadErrorText').textContent = err.message;

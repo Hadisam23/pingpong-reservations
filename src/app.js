@@ -11,6 +11,7 @@ const { createCheckIn } = require('./checkin');
 const { createNotifier } = require('./notify');
 const { createReservations } = require('./reservations');
 const { createLessons } = require('./lessons');
+const { createMemberships } = require('./memberships');
 const { toIcs } = require('./ics');
 
 // Origins the Capacitor app runs on (iOS: capacitor://localhost, Android: http(s)://localhost).
@@ -31,6 +32,7 @@ function createApp({
   const notifier = createNotifier(db, { mailer, now });
   const reservations = createReservations(db, { service, pricing, payments, checkIn, notifier, now });
   const lessons = createLessons(db, { service, reservations, payments, notifier, now });
+  const memberships = createMemberships(db, { payments, notifier, service, now });
   const app = express();
   // Async route handlers: send rejections to the error handler
   const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -225,7 +227,15 @@ function createApp({
   api.get('/session', (req, res) => res.json({ user: auth.userForToken(sessionToken(req)) }));
   api.get('/me', requireUser, (req, res) => res.json(req.user));
   api.patch('/me', requireUser, (req, res) => res.json(auth.updateProfile(req.user.id, req.body)));
-  api.put('/me/plan', requireUser, (req, res) => res.json(auth.choosePlan(req.user.id, req.body.plan)));
+  // Memberships (Phase 6): paid plans are charged (demo) or go through Stripe Checkout (redirect)
+  api.get('/me/membership', requireUser, (req, res) => res.json(memberships.view(req.user.id)));
+  api.put('/me/plan', requireUser, wrap(async (req, res) => {
+    const membership = await memberships.change(req.user, req.body.plan, { baseUrl: publicUrl(req) });
+    res.json({ user: auth.userForToken(sessionToken(req)), membership, redirect: membership.redirect });
+  }));
+  api.post('/me/membership/cancel', requireUser, wrap(async (req, res) => res.json(await memberships.cancel(req.user))));
+  api.post('/me/membership/resume', requireUser, wrap(async (req, res) => res.json(await memberships.resume(req.user))));
+  api.post('/me/payment-methods', requireUser, wrap(async (req, res) => res.json(await memberships.portal(req.user, { baseUrl: publicUrl(req) }))));
 
   // ---------- admin API ----------
 
@@ -297,8 +307,9 @@ function createApp({
   const runJobs = async () => {
     await reservations.runJobs();
     lessons.runJobs();
+    await memberships.runJobs();
   };
-  return { app, service, auth, mailer, db, payments, reservations, lessons, checkIn, runJobs };
+  return { app, service, auth, mailer, db, payments, reservations, lessons, memberships, checkIn, runJobs };
 }
 
 module.exports = { createApp };

@@ -35,7 +35,7 @@ test('sign up creates an account, a session cookie and a Drop-in plan', async ()
   assert.equal(res.body.user.phone, '0521234567');
   assert.equal(res.body.user.skillLevel, 'intermediate');
   assert.equal(res.body.user.role, 'PLAYER');
-  assert.deepEqual(res.body.user.plan, { id: 'dropin', name: 'Drop-in', price: 0, bookingWindowDays: 3, status: 'active', currentPeriodEnd: null });
+  assert.deepEqual(res.body.user.plan, { id: 'dropin', name: 'Drop-in', price: 0, bookingWindowDays: 3, status: 'active', currentPeriodEnd: null, cancelAtPeriodEnd: false });
   assert.deepEqual(res.body.user.stats, { sessionsThisMonth: 0, tableCredits: 0 });
   assert.ok(!('passwordHash' in res.body.user));
   assert.ok(res.body.token.length > 30);
@@ -158,11 +158,11 @@ test('profile edits and plan choice', async () => {
 
   const plans = await call('GET', '/api/plans');
   assert.deepEqual(plans.body.map(p => p.id), ['dropin', 'club', 'pro']);
+  // Demo payments: a paid plan starts at once (see memberships.test.js for the rest)
   const club = await call('PUT', '/api/me/plan', { plan: 'club' }, opts);
-  assert.equal(club.body.plan.id, 'club');
-  assert.equal(club.body.plan.status, 'pending_payment');
-  assert.equal(club.body.plan.bookingWindowDays, 14);
-  assert.equal((await call('PUT', '/api/me/plan', { plan: 'dropin' }, opts)).body.plan.status, 'active');
+  assert.equal(club.body.user.plan.id, 'club');
+  assert.equal(club.body.user.plan.status, 'active');
+  assert.equal(club.body.user.plan.bookingWindowDays, 14);
   assert.equal((await call('PUT', '/api/me/plan', { plan: 'gold' }, opts)).status, 400);
   assert.equal((await call('PUT', '/api/me/plan', { plan: 'club' })).status, 401);
 });

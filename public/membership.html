@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Your membership · Rally Club</title>
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="components.css">
+</head>
+<body class="ui-app">
+  <div class="ui-shell">
+    <main class="ui-screen ui-screen--app" aria-labelledby="title" id="screen" aria-busy="true">
+      <div class="ui-screen__head">
+        <a class="ui-icon-btn" href="profile.html" aria-label="Back to profile"><span data-ui-icon="back"></span></a>
+        <h1 class="ui-h2" id="title">Your membership</h1>
+      </div>
+
+      <span class="ui-skel" style="height: 150px; border-radius: var(--radius-hero)" id="cardSkel" aria-hidden="true"></span>
+      <section class="ui-hero ui-plan-card" aria-labelledby="planName" id="card" hidden>
+        <span class="ui-hero__ball" aria-hidden="true"></span>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <span class="ui-eyebrow">Membership</span>
+          <h2 class="ui-plan-card__name" id="planName"></h2>
+          <span class="ui-small" style="color: var(--on-navy-muted)" id="planLine"></span>
+        </div>
+        <div class="ui-hero__actions" id="cardActions" style="grid-template-columns: 1fr" hidden></div>
+      </section>
+
+      <section class="ui-group" aria-labelledby="changeTitle" id="change" hidden>
+        <h2 class="ui-section" id="changeTitle">Change plan</h2>
+        <form id="planForm" class="ui-form" novalidate>
+          <div class="ui-radio-cards ui-mt-sm" role="radiogroup" aria-labelledby="changeTitle" id="plans"></div>
+          <button type="submit" class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block" id="switch" disabled>Pick a plan</button>
+        </form>
+      </section>
+
+      <nav class="ui-settings" aria-label="Billing" id="billing" hidden>
+        <button type="button" class="ui-settings__row" id="payMethods"><span class="ui-settings__label">Payment method</span><span class="ui-settings__hint" id="cardHint"></span><span data-ui-icon="forward"></span></button>
+      </nav>
+
+      <button type="button" class="ui-logout" id="cancelBtn" hidden>Cancel membership</button>
+    </main>
+    <nav id="tabbar"></nav>
+  </div>
+
+  <div class="ui-sheet" id="cancelSheet" role="dialog" aria-modal="true" aria-labelledby="cancelTitle" hidden>
+    <div class="ui-sheet__panel">
+      <h2 class="ui-h2" id="cancelTitle">Cancel membership?</h2>
+      <p class="ui-body ui-muted" id="cancelText"></p>
+      <button type="button" class="ui-btn ui-btn--danger ui-btn--lg ui-btn--block" id="cancelYes">Cancel membership</button>
+      <button type="button" class="ui-btn ui-btn--ghost" id="cancelNo">Keep it</button>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script src="ui.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+  <script>
+    let m = null;
+    const day = iso => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    const chosen = () => (document.querySelector('input[name="plan"]:checked') || {}).value;
+    const paid = () => m.plan.price > 0;
+
+    function render() {
+      const p = m.plan;
+      $('#planName').textContent = p.name;
+      let line;
+      const actions = [];
+      if (!paid()) line = `Free · book up to ${p.bookingWindowDays} days ahead`;
+      else if (m.status === 'pending_payment') line = 'Waiting for your payment';
+      else if (m.status === 'past_due') {
+        line = 'Payment failed · member prices are paused';
+        actions.push(UI.button({ label: 'Update card', variant: 'inverse', id: 'fixCard' }));
+      } else if (m.cancelAtPeriodEnd) {
+        line = `Ends ${day(m.currentPeriodEnd)} · then Drop-in`;
+        actions.push(UI.button({ label: 'Keep my membership', variant: 'inverse', id: 'resume' }));
+      } else line = `Renews ${day(m.currentPeriodEnd)} · ${money(p.price, p.currency)}/mo`;
+      $('#planLine').textContent = line;
+      $('#cardActions').innerHTML = actions.join('');
+      $('#cardActions').hidden = !actions.length;
+
+      const current = paid() && m.cancelAtPeriodEnd ? 'dropin' : p.id;
+      $('#plans').innerHTML = m.plans.map(x => `
+        <label class="ui-radio-card">
+          ${x.popular ? '<span class="ui-badge ui-badge--popular">Most popular</span>' : ''}
+          <input type="radio" name="plan" value="${x.id}" ${x.id === current ? 'checked' : ''}>
+          <span class="ui-radio-card__body"><span class="ui-radio-card__dot" aria-hidden="true"></span><span class="ui-radio-card__main">
+            <span class="ui-radio-card__head"><span class="ui-radio-card__name">${UI.esc(x.name)}${x.id === p.id ? ' <span class="ui-badge ui-badge--neutral">Current</span>' : ''}</span>
+              <span class="ui-radio-card__price">${x.price ? `${UI.esc(money(x.price, x.currency))}<span class="ui-radio-card__per"> /mo</span>` : 'Free'}</span></span>
+            <span class="ui-radio-card__desc">${UI.esc(x.summary)}</span>
+          </span></span>
+        </label>`).join('');
+      syncButton();
+
+      $('#cardHint').textContent = m.provider === 'stripe' ? 'Cards & invoices' : `${m.card.title.replace('Card ending ', 'Card ··')} · test`;
+      $('#billing').hidden = !paid() && m.provider !== 'stripe';
+      $('#cancelBtn').hidden = !paid() || m.cancelAtPeriodEnd;
+      ['card', 'change'].forEach(id => { $(`#${id}`).hidden = false; });
+      $('#cardSkel').hidden = true;
+      $('#screen').removeAttribute('aria-busy');
+    }
+
+    function syncButton() {
+      const target = m.plans.find(x => x.id === chosen());
+      const current = paid() && m.cancelAtPeriodEnd ? 'dropin' : m.plan.id;
+      const btn = $('#switch');
+      btn.disabled = !target || target.id === current;
+      if (!target || target.id === current) btn.textContent = "That's your plan";
+      else if (target.price === 0) btn.textContent = 'Move to Drop-in';
+      else if (paid() && m.status === 'active') btn.textContent = `Switch to ${target.name} · ${money(target.price, target.currency)}/mo`;
+      else btn.textContent = `Pay ${money(target.price, target.currency)} & start ${target.name}`;
+    }
+    $('#plans').addEventListener('change', syncButton);
+
+    async function load() {
+      m = await App.call('/api/me/membership');
+      render();
+    }
+
+    $('#planForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const target = m.plans.find(x => x.id === chosen());
+      if (!target) return;
+      if (target.price === 0 && paid() && m.status === 'active') return openCancel();
+      const btn = $('#switch');
+      UI.setLoading(btn, true);
+      try {
+        const res = await Auth.choosePlan(target.id);
+        if (res.redirect) {
+          if (isNativeApp) window.open(res.redirect, '_blank'); else location.href = res.redirect;
+          return;
+        }
+        m = res.membership;
+        render();
+        haptic();
+        UI.toast(target.price ? `You're on ${target.name}.` : "You're on Drop-in.", { kind: 'success' });
+      } catch (err) {
+        UI.toast(err.message, { kind: 'error' });
+      } finally {
+        UI.setLoading(btn, false);
+        syncButton();
+      }
+    });
+
+    // ---------- cancel / resume ----------
+    function openCancel() {
+      $('#cancelTitle').textContent = `Cancel ${m.plan.name}?`;
+      $('#cancelText').textContent = m.status === 'active'
+        ? `Your ${m.plan.name} benefits stay until ${day(m.currentPeriodEnd)}. After that you're on Drop-in: standard prices and ${m.plans[0].bookingWindowDays}-day booking. You won't be charged again.`
+        : "You haven't paid for this period, so you move to Drop-in right away.";
+      $('#cancelSheet').hidden = false;
+      $('#cancelNo').focus();
+    }
+    const closeCancel = () => { $('#cancelSheet').hidden = true; $('#cancelBtn').focus(); };
+    $('#cancelBtn').addEventListener('click', openCancel);
+    $('#cancelNo').addEventListener('click', closeCancel);
+    $('#cancelSheet').addEventListener('click', e => { if (e.target.id === 'cancelSheet') closeCancel(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#cancelSheet').hidden) closeCancel(); });
+    $('#cancelYes').addEventListener('click', async () => {
+      UI.setLoading($('#cancelYes'), true);
+      try {
+        m = await App.call('/api/me/membership/cancel', { method: 'POST', body: {} });
+        $('#cancelSheet').hidden = true;
+        render();
+        UI.toast(m.cancelAtPeriodEnd ? `Cancelled. ${m.plan.name} stays until ${day(m.currentPeriodEnd)}.` : "You're on Drop-in.", { kind: 'success' });
+        $('#title').focus();
+      } catch (err) {
+        UI.toast(err.message, { kind: 'error' });
+      } finally {
+        UI.setLoading($('#cancelYes'), false);
+      }
+    });
+
+    $('#screen').addEventListener('click', async e => {
+      if (e.target.closest('#resume')) {
+        m = await App.call('/api/me/membership/resume', { method: 'POST', body: {} });
+        render();
+        UI.toast(`Great, ${m.plan.name} continues.`, { kind: 'success' });
+      }
+      if (e.target.closest('#fixCard, #payMethods')) {
+        try {
+          const res = await App.call('/api/me/payment-methods', { method: 'POST', body: {} });
+          if (res.redirect) { if (isNativeApp) window.open(res.redirect, '_blank'); else location.href = res.redirect; return; }
+          UI.toast(`Demo mode: payments use the test card ${res.card.title.replace('Card ending ', '··')}.`);
+        } catch (err) {
+          UI.toast(err.message, { kind: 'error' });
+        }
+      }
+    });
+
+    (async () => {
+      await Auth.requireUser();
+      App.tabbar('profile');
+      $('#title').setAttribute('tabindex', '-1');
+      if (App.param('paid')) UI.toast('Payment received. Your membership starts as soon as Stripe confirms it.', { kind: 'success' });
+      if (App.param('plan')) {
+        await load();
+        const want = document.querySelector(`input[name="plan"][value="${CSS.escape(App.param('plan'))}"]`);
+        if (want) { want.checked = true; syncButton(); }
+        return;
+      }
+      load().catch(err => UI.toast(err.message, { kind: 'error' }));
+    })();
+  </script>
+</body>
+</html>

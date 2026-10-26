@@ -99,7 +99,7 @@ Players can create an account (email + password), pick a membership, and manage 
 - 10 failed logins per email or IP in 15 minutes → wait 15 minutes.
 - **Email:** until real email is set up (Phase 8), messages such as reset links are printed to the
   server console.
-- **Paid plans** are saved as "payment pending" until Stripe is connected (Phase 6). Plan prices in
+- **Paid plans** start after payment (step 3 of sign up, or Manage membership). Plan prices in
   `src/plans.js` are placeholders.
 - Google and Apple sign-in come later. They need OAuth keys.
 
@@ -245,6 +245,22 @@ booking's `token` instead of a session.
 API: `GET /api/coaches`, `GET /api/coaches/:id`, `GET /api/coaches/:id/slots`, `POST /api/lessons/holds`,
 `GET /api/classes`, `POST /api/classes/:id/join`, `POST|DELETE /api/classes/:id/waitlist`,
 `GET|POST /api/lesson-packs`.
+
+## Memberships (Phase 6)
+
+- Sign up step 3 / **Manage membership** (`membership.html`): pay to start Club or Pro, switch
+  plans, cancel at the end of the period (benefits stay until then), keep it after all.
+- **Demo mode:** the test card is charged at once; the background job renews each month (charge →
+  new period → the plan's table credits; unused credits lapse) and moves cancelled members to
+  Drop-in when the period ends. A failed renewal sets **past due**: member prices and the longer
+  booking window pause until it's paid.
+- **Stripe mode:** Stripe Checkout in subscription mode; Stripe renews and the webhook keeps the
+  membership in step. Subscribe the webhook to `checkout.session.completed`, `invoice.paid`,
+  `invoice.payment_failed`, `customer.subscription.updated` and `customer.subscription.deleted`.
+  Plan changes update the subscription (prorated); Payment methods opens the Stripe billing portal.
+
+API: `GET /api/me/membership`, `PUT /api/me/plan` (→ `{ user, membership, redirect? }`),
+`POST /api/me/membership/cancel|resume`, `POST /api/me/payment-methods`.
 
 ## Project layout
 

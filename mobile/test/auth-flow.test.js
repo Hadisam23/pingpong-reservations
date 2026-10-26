@@ -84,6 +84,12 @@ test('website: sign up, choose a plan, edit profile, log out and back in, reset 
   await page.click('.ui-radio-card:has-text("Club")');
   await page.click('#planSubmit');
 
+  // Step 3: pay (demo card) and the membership starts
+  await page.waitForSelector('#stepPay:not([hidden])');
+  assert.match(await page.textContent('#payLabel'), /^Pay .*149.* & start Club$/);
+  await page.screenshot({ path: path.join(SHOTS, 'p6-pay.png') });
+  await page.click('#paySubmit');
+
   // New accounts land on Home; Profile is a tab away
   await page.waitForURL(/home/);
   await page.waitForSelector('#hero:not([hidden])');
@@ -93,7 +99,8 @@ test('website: sign up, choose a plan, edit profile, log out and back in, reset 
   assert.equal(await page.textContent('#name'), 'Noa Cohen');
   assert.match(await page.textContent('#meta'), /^Beginner · member since/);
   assert.equal(await page.textContent('#planName'), 'Club');
-  assert.match(await page.textContent('#planLine'), /Payment pending/);
+  assert.match(await page.textContent('#planLine'), /^Renews \d+ \w+ · .*149.*\/mo$/);
+  assert.equal(await page.textContent('#statCredits'), '4');
   assert.equal(await page.textContent('#statWindow'), '14d');
   await page.screenshot({ path: path.join(SHOTS, 'p2-profile.png') });
 
@@ -120,17 +127,27 @@ test('website: sign up, choose a plan, edit profile, log out and back in, reset 
   assert.equal(await page.textContent('#name'), 'Noa Levi');
   assert.match(await page.textContent('#meta'), /^Advanced/);
 
-  // Change plan from the profile
+  // Manage membership: upgrade to Pro, then cancel (benefits stay until the period ends)
   await page.click('#planActions >> text=Manage');
-  await page.waitForSelector('#stepPlan:not([hidden]) .ui-radio-card');
-  assert.equal(await page.textContent('#planTitle'), 'Your membership');
+  await page.waitForURL(/membership\.html/);
+  await page.waitForSelector('#card:not([hidden])');
   assert.equal(await page.isChecked('input[value="club"]'), true);
-  await page.click('.ui-radio-card:has-text("Drop-in")');
-  await page.click('#planSubmit');
-  await page.waitForURL(/profile/);
+  await page.click('.ui-radio-card:has-text("Pro")');
+  assert.match(await page.textContent('#switch'), /^Switch to Pro/);
+  await page.click('#switch');
+  await page.waitForFunction(() => document.querySelector('#planName').textContent === 'Pro');
+  await page.screenshot({ path: path.join(SHOTS, 'p6-membership.png'), fullPage: true });
+  await page.click('#cancelBtn');
+  await page.waitForSelector('#cancelSheet:not([hidden])');
+  assert.match(await page.textContent('#cancelText'), /benefits stay until/);
+  await page.click('#cancelYes');
+  await page.waitForFunction(() => /^Ends /.test(document.querySelector('#planLine').textContent));
+  await page.click('#resume');
+  await page.waitForFunction(() => /^Renews /.test(document.querySelector('#planLine').textContent));
+  await page.goto(`${base}/profile.html`);
   await page.waitForSelector('#head:not([hidden])');
-  assert.equal(await page.textContent('#planName'), 'Drop-in');
-  assert.equal(await page.textContent('#statWindow'), '3d');
+  assert.equal(await page.textContent('#planName'), 'Pro');
+  assert.equal(await page.textContent('#statWindow'), '30d');
 
   // Log out, a protected page sends you to log in, then back where you were
   await page.click('#logout');
