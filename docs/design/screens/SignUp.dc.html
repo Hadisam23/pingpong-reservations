@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Create account</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif}
+a{color:#0B1F3A}a:hover{color:#1E3A8A}
+input::placeholder{color:#8A97AB}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #FFFFFF; color: #0B1F3A; display: flex; flex-direction: column; padding: 24px 24px 32px; font-family: 'Plus Jakarta Sans', system-ui, sans-serif">
+  <div style="display: flex; align-items: center; justify-content: space-between">
+    <a href="Main.dc.html" aria-label="Back" style="width: 44px; height: 44px; border-radius: 12px; border: 1px solid #E2E8F0; display: flex; align-items: center; justify-content: center">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B1F3A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
+    </a>
+    <span style="font-size: 13px; font-weight: 600; color: #5B6B82">Step 1 of 3</span>
+  </div>
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 16px">
+    <div style="height: 4px; border-radius: 4px; background: #0B1F3A"></div>
+    <div style="height: 4px; border-radius: 4px; background: #E2E8F0"></div>
+    <div style="height: 4px; border-radius: 4px; background: #E2E8F0"></div>
+  </div>
+
+  <h1 style="margin: 24px 0 6px; font-size: 28px; font-weight: 800; letter-spacing: -0.02em">Create your account</h1>
+  <p style="margin: 0 0 20px; font-size: 15px; color: #5B6B82">It takes under a minute.</p>
+
+  <div style="display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <label for="su-name" style="font-size: 13px; font-weight: 600">Full name</label>
+      <input id="su-name" type="text" placeholder="First and last name" style="height: 50px; border-radius: 12px; border: 1.5px solid #E2E8F0; padding: 0 14px; font: inherit; font-size: 15px; color: #0B1F3A; background: #FFFFFF">
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <label for="su-email" style="font-size: 13px; font-weight: 600">Email</label>
+      <input id="su-email" type="email" value="you@example.com" style="height: 50px; border-radius: 12px; border: 2px solid #1E3A8A; padding: 0 14px; font: inherit; font-size: 15px; color: #0B1F3A; background: #FFFFFF; box-shadow: 0 0 0 4px rgba(30,58,138,0.12)">
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <label for="su-phone" style="font-size: 13px; font-weight: 600">Phone</label>
+        <input id="su-phone" type="tel" placeholder="For reminders" style="height: 50px; border-radius: 12px; border: 1.5px solid #E2E8F0; padding: 0 14px; font: inherit; font-size: 15px; color: #0B1F3A; background: #FFFFFF; min-width: 0">
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <label for="su-pass" style="font-size: 13px; font-weight: 600">Password</label>
+        <input id="su-pass" type="password" placeholder="8+ characters" style="height: 50px; border-radius: 12px; border: 1.5px solid #E2E8F0; padding: 0 14px; font: inherit; font-size: 15px; color: #0B1F3A; background: #FFFFFF; min-width: 0">
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <span style="font-size: 13px; font-weight: 600">Your level</span>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+        <sc-for list="{{levels}}" as="lv" hint-placeholder-count="3">
+          <sc-if value="{{lv.on}}" hint-placeholder-val="{{ false }}">
+            <button type="button" onClick="{{lv.pick}}" style="height: 44px; border-radius: 12px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; background: #0B1F3A; color: #FFFFFF; border: 1.5px solid #0B1F3A">{{lv.label}}</button>
+          </sc-if>
+          <sc-if value="{{lv.off}}" hint-placeholder-val="{{ true }}">
+            <button type="button" onClick="{{lv.pick}}" style="height: 44px; border-radius: 12px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; background: #FFFFFF; color: #0B1F3A; border: 1.5px solid #E2E8F0">{{lv.label}}</button>
+          </sc-if>
+        </sc-for>
+      </div>
+    </div>
+
+    <label style="display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.45; color: #5B6B82">
+      <input type="checkbox" checked style="width: 18px; height: 18px; margin: 1px 0 0; accent-color: #0B1F3A">
+      <span>I agree to the club rules, terms and cancellation policy.</span>
+    </label>
+  </div>
+
+  <div style="flex-grow: 1"></div>
+
+  <a href="Membership.dc.html" style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 56px; border-radius: 16px; background: #0B1F3A; color: #FFFFFF; font-size: 16px; font-weight: 700; text-decoration: none; box-shadow: 0 8px 20px rgba(11,31,58,0.25)">Continue
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+  </a>
+  <div style="display: flex; align-items: center; gap: 12px; margin: 16px 0; color: #8A97AB; font-size: 12px; font-weight: 600">
+    <div style="flex-grow: 1; height: 1px; background: #E2E8F0"></div>OR<div style="flex-grow: 1; height: 1px; background: #E2E8F0"></div>
+  </div>
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+    <button type="button" style="height: 50px; border-radius: 14px; border: 1.5px solid #E2E8F0; background: #FFFFFF; color: #0B1F3A; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer">Google</button>
+    <button type="button" style="height: 50px; border-radius: 14px; border: 1.5px solid #E2E8F0; background: #FFFFFF; color: #0B1F3A; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer">Apple</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { level: 'Intermediate' }; }
+  renderVals() {
+    var self = this;
+    var levels = ['Beginner', 'Intermediate', 'Advanced'].map(function (l) {
+      var sel = self.state.level === l;
+      return { label: l, on: sel, off: !sel, pick: function () { self.setState({ level: l }); } };
+    });
+    return { levels: levels };
+  }
+}
+</script>
+</body>
+</html>
